@@ -8372,6 +8372,17 @@
       min-width: 100%;
       max-width: none;
     }
+    /* ⚠ THE DOORS SCROLL INSIDE THEMSELVES, like the chip row below and the character bar's (B4). Six with their
+     * words are 499px at 375, and at `flex: 0 0 auto` they ran the header, and the whole hangar with it, 612px wide.
+     * The scrollbar is hidden: the strip is 28px tall, and a bar would take half of it. */
+    .hangar .global-launchers {
+      flex: 0 1 auto;
+      min-width: 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+    }
+    .hangar .global-launchers::-webkit-scrollbar { display: none; }
     .hangar-chiprow {
       position: sticky;
       top: 52px;
