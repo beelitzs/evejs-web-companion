@@ -111,6 +111,7 @@ import { applyJamEvent, type ActiveJam } from "../bridge/jamNotifications.ts";
 import { EMPTY_RECIPE_BOOK } from "../bridge/piRecipes.ts";
 import { applyTargetEvent, applyTargeterEvent } from "../bridge/targetNotifications.ts";
 import { applyChargeQuantityChanges } from "../bridge/reloadNotifications.ts";
+import { withDogmaCharges } from "../bridge/fitting.ts";
 
 // --- Typed state slices ----------------------------------------------------
 
@@ -1495,8 +1496,12 @@ export function createClientStore(): ClientStore {
         // snapshot. A failed refresh keeps the last reading and its new error.
         const allInfo = event.allInfo ?? dogma.get().allInfo;
         dogma.set({ allInfo, loaded: true, error: event.error });
+        const current = fitting.get();
         fitting.set({
-          ...fitting.get(),
+          ...current,
+          // A loaded charge is dogma's (bridge/fitting.ts withDogmaCharges): filled from this read only, which every
+          // fitting read is followed by and which is godma's as the BFF keeps it now, never from a kept older one.
+          slots: event.allInfo ? withDogmaCharges(current.slots, current.activeShipID, event.allInfo) : current.slots,
           dogma: allInfo,
           dogmaError: event.error,
         });

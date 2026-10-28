@@ -15,6 +15,7 @@
 // flagID, typeID or itemID ever reaches the rendered UI.
 
 import { isListValue, unwrapLong, type JsonValue } from "./wire.ts";
+import type { BoundDogmaAllInfo } from "./boundDogma.ts";
 import type {
   FittedModule,
   FittingResource,
@@ -420,6 +421,47 @@ export function buildSlots(
     }
   }
   return slots;
+}
+
+/** Dogma attribute 805, quantity: how many charges a sublocation holds. */
+const ATTRIBUTE_QUANTITY = 805;
+
+/**
+ * A loaded charge as the client's fitting slot has it: from dogma, not the inventory. The slot's charge is its
+ * dogmaChargeItem (fittingSlotController.py 123, GetCharge), a sublocation (shipID, flagID, typeID) whose count is
+ * attribute 805 (godma.GetSubLocation, godma.py 1817). On the game port the ship's ListByFlags is answered from the
+ * BFF's inventory cache, which has no row for a charge loaded after it was listed, so buildSlots alone left a loaded
+ * gun "Nothing loaded" after every re-read. A fitted module the rows gave no charge takes the one dogma holds at its
+ * flag; a charge the rows or the server's notices gave is kept as it is.
+ */
+export function withDogmaCharges(
+  slots: readonly FittingSlot[],
+  activeShipID: number | null,
+  dogma: BoundDogmaAllInfo | null,
+): readonly FittingSlot[] {
+  if (activeShipID === null || dogma === null) {
+    return slots;
+  }
+  let next: FittingSlot[] | null = null;
+  for (let at = 0; at < slots.length; at += 1) {
+    const slot = slots[at]!;
+    if (!slot.module || slot.module.charge !== null) {
+      continue;
+    }
+    const flagID = slotFlagOf(slot.family, slot.index);
+    const entry = dogma.ships.find((item) =>
+      item.sublocation && Number(item.sublocation[0]) === activeShipID && item.sublocation[1] === flagID);
+    const quantity = entry?.attributes.find((attribute) => attribute.attributeID === ATTRIBUTE_QUANTITY)?.value;
+    if (!entry?.sublocation || typeof quantity !== "number" || !(quantity > 0)) {
+      continue;
+    }
+    next ??= [...slots];
+    next[at] = {
+      ...slot,
+      module: { ...slot.module, charge: { itemID: entry.sublocation, typeID: entry.sublocation[2], quantity } },
+    };
+  }
+  return next ?? slots;
 }
 
 /** The slots of one family, in slot order (the panel groups by family). */
