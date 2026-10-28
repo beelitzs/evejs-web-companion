@@ -681,10 +681,16 @@
     if (magnitude === "0.00" || magnitude === "0") {
       return "That went through. Nothing was taken from your wallet.";
     }
-    return negative
-      ? `That went through. ${formatIsk(magnitude)} was returned to your wallet.`
-      : `That went through. You were actually charged ${formatIsk(magnitude)}.`;
+    // A sell that filled is paid for its goods; any other change that leaves the wallet higher returned ISK to it.
+    if (negative) {
+      return outcome.kind === "sell"
+        ? `That went through. ${formatIsk(magnitude)} came into your wallet for what you sold.`
+        : `That went through. ${formatIsk(magnitude)} was returned to your wallet.`;
+    }
+    return `That went through. You were actually charged ${formatIsk(magnitude)}.`;
   });
+  /** The side of the order whose take-down is being asked, for the words under it. */
+  const cancellingSide = $derived(openOrders.find((order) => order.orderID === cancellingOrderID)?.side ?? null);
 
   // --- R83: BROWSING, not just searching -------------------------------------
   //
@@ -1406,8 +1412,10 @@
       {/if}
       {#if cancellingOrderID !== null}
         <p class="note">
-          Taking a buy order down returns the ISK it had tied up. The fee you
-          paid to place it is not returned.
+          {cancellingSide === "sell"
+            ? "Taking a sell order down puts the goods it still holds back in your hangar at its station."
+            : "Taking a buy order down returns the ISK it had tied up."}
+          The fee you paid to place it is not returned.
         </p>
       {/if}
     {/if}
