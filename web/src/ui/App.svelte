@@ -815,6 +815,7 @@
   <ErrorBoundary name="Pilot hangar">
     <PilotHangar
       {onlineIDs}
+      {sessionFor}
       onLaunch={bringOnline}
       onShowPilot={goToPilot}
       onClose={active ? () => (hangarOpen = false) : null}

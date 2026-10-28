@@ -108,9 +108,11 @@
   import { panelErrorWords } from "../bridge/refusals.ts";
   import GlobalLaunchers from "./GlobalLaunchers.svelte";
   import type { TabID } from "./tabs.ts";
+  import type { Session } from "../app/sessions.ts";
 
   let {
     onlineIDs = new Set<number>(),
+    sessionFor = () => undefined,
     onLaunch,
     onShowPilot,
     onClose = null,
@@ -133,6 +135,8 @@
     onOpenGlobal?: (id: TabID) => void;
     /** Character IDs already in the client, from App's live session list. */
     onlineIDs?: Set<number>;
+    /** The session flying a pilot in the client, for the place it is in now (HangarPilotRow.svelte). */
+    sessionFor?: (characterID: number) => Session | undefined;
     /**
      * The token a call about THIS pilot must ride (R107 multibox), or NULL when
      * no session in this tab is flying it.
@@ -918,6 +922,7 @@
             {#each account.pilots as pilot (pilot.characterID)}
               <HangarPilotRow
                 {pilot}
+                session={pilot.online ? (sessionFor(pilot.characterID) ?? null) : null}
                 {manage}
                 {tapSelects}
                 selected={selected.has(pilot.characterID)}

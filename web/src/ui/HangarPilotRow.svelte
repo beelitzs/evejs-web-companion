@@ -15,9 +15,14 @@
   import { formatIskCompact, formatSpCompact } from "../app/hangar.ts";
   // One vocabulary for every bot readout in the client — see bots/pilotRoster.ts.
   import { activeBotCommandWords, activeBotVitalsWords } from "../bots/pilotRoster.ts";
+  import type { Session } from "../app/sessions.ts";
+  import type { StationSlice } from "../store/clientStore.ts";
+  import type { FlightState } from "../store/types.ts";
+  import { deriveDocked } from "./tabs.ts";
 
   let {
     pilot,
+    session = null,
     selected,
     manage,
     /** Below 760px a tap SELECTS instead of launching — mis-tap protection. */
@@ -38,6 +43,11 @@
     onToggleCompanion = () => {},
   }: {
     pilot: HangarPilot;
+    /**
+     * The session flying this pilot in this tab, or null. The roster's place is the selection read's, made when
+     * the hangar opened; a pilot in the client can move while the hangar stays open over the cockpit.
+     */
+    session?: Session | null;
     selected: boolean;
     manage: boolean;
     tapSelects: boolean;
@@ -77,6 +87,38 @@
     /** Turn a companion setup on (shipped defaults) or off (remove it) for one squad. */
     onToggleCompanion?: (squadID: string) => void;
   } = $props();
+
+  // Read from that session's own store, as BotManagerPilotRow.svelte reads it: `session` can come and go with the row.
+  let station = $state<StationSlice | null>(null);
+  let flight = $state<FlightState | null>(null);
+  $effect(() => {
+    if (!session) {
+      station = null;
+      flight = null;
+      return;
+    }
+    const unsubs = [
+      session.store.station.subscribe((value) => {
+        station = value;
+      }),
+      session.store.flight.subscribe((value) => {
+        flight = value;
+      }),
+    ];
+    return () => {
+      for (const unsub of unsubs) unsub();
+    };
+  });
+
+  // Where a pilot in the client is now, by CharacterChip.svelte's chain: docked, the station (or its system); in
+  // space, the flight's system. Null for a pilot with no session here, which keeps the roster's place.
+  const livePlace = $derived(
+    station?.online
+      ? deriveDocked(flight?.status ?? null, station.online)
+        ? (station.station?.stationName ?? station.station?.solarSystemName ?? flight?.solarSystemName ?? null)
+        : (flight?.solarSystemName ?? null)
+      : null,
+  );
 
   // Manage mode deliberately makes the row inert: it is the mode where you
   // remove pilots and shuffle squads, and a stray click that put six pilots in
@@ -155,7 +197,7 @@
     <div class="hangar-meta">
       <span>{pilot.shipName ?? "—"}</span>
       <span class="hangar-meta-sep">·</span>
-      <span class="hangar-meta-loc">{pilot.locationName ?? "—"}</span>
+      <span class="hangar-meta-loc">{livePlace ?? pilot.locationName ?? "—"}</span>
     </div>
 
     <div class="hangar-stats">
