@@ -553,6 +553,24 @@
    */
   const selectedCount = $derived(selectedRows.length);
   const selectedVolume = $derived(sumVolume(selectedRows));
+
+  /**
+   * The m³ a move sends. Where it is a part of the one ticked stack, that is the quantity the move itself sends
+   * (`moveQuantityFor`: a typed one, or what fits in a ship hold); before a destination is picked, the typed one.
+   * Otherwise the whole selection. Both said the whole stack's m³ when only the typed part of it moved.
+   */
+  function movingVolume(destination: InventoryPlace | null): number | null {
+    const row = selectedRows.length === 1 ? selectedRows[0]! : null;
+    if (row === null) return selectedVolume;
+    let quantity = parseMoveQuantity(moveQty);
+    if (destination !== null) {
+      const verdict = moveQuantityFor({ inventory: $inventory, destination, selection, selectedRows, typedQuantity: moveQty });
+      quantity = verdict.kind === "move" ? verdict.quantity : null;
+    }
+    return quantity === null || quantity >= row.quantity ? selectedVolume : totalVolume({ ...row, quantity });
+  }
+  const barVolume = $derived(movingVolume(null));
+  const pendingVolume = $derived(pending?.kind === "move" ? movingVolume(pending.place) : selectedVolume);
   const mergeable = $derived(
     selectedRows.length === 2 && canMergeStacks(selectedRows[0]!, selectedRows[1]!),
   );
@@ -2059,7 +2077,7 @@
             <b>{volumeText(selectedVolume)}</b>? This cannot be undone.
           {:else}
             Move <b>{selectedCount}</b> {selectedCount === 1 ? "stack" : "stacks"} ·
-            <b>{volumeText(selectedVolume)}</b> to <b class="stn-accent">{pending.label}</b>?
+            <b>{volumeText(pendingVolume)}</b> to <b class="stn-accent">{pending.label}</b>?
             <span class="stn-muted">{roomFreeText(destinationCapacity(pending.place))}</span>
           {/if}
         </span>
@@ -2078,7 +2096,7 @@
       {:else}
         <span class="stn-sel-mark"></span>
         <span class="stn-sel-count">{selectedCount} selected</span>
-        <span class="stn-sel-vol">{selectedCount > 0 ? volumeText(selectedVolume) : ""}</span>
+        <span class="stn-sel-vol">{selectedCount > 0 ? volumeText(barVolume) : ""}</span>
         {#if showQty}
           <label class="stn-qty">
             Qty
@@ -2138,7 +2156,7 @@
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div class="stn-menu-shade" onclick={() => (targetMenuOpen = false)}></div>
     <div class="stn-menu stn-target-menu">
-      <p class="stn-menu-head">Move {selectedCount} · {volumeText(selectedVolume)}</p>
+      <p class="stn-menu-head">Move {selectedCount} · {volumeText(barVolume)}</p>
       {#each targets as target (target.label)}
         <button type="button" class="stn-menu-item" disabled={busy} onclick={() => askMove(target)}>
           {target.label}
