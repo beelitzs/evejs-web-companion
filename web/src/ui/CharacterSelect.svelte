@@ -8,6 +8,8 @@
   import type { ClientStore } from "../store/clientStore.ts";
   import type { AppFlow } from "../app/flow.ts";
   import { panelErrorWords } from "../bridge/refusals.ts";
+  import { formatNumeric } from "../bridge/pyNumbers.ts";
+  import { formatWholeIsk } from "./isk.ts";
 
   let { store, flow, botFlownIDs = new Set<number>(), onCreate = null }: {
     store: ClientStore;
@@ -104,10 +106,12 @@
                 <span class="bot-flying-badge" title="A server bot is flying this pilot">⚙ Bot flying</span>
               {/if}
             </span>
+            <!-- As the client's character slot writes them (characterSlots.py 472 to 476): the skill points by
+                 FormatNumeric(sp, useGrouping=True), the balance by FmtISK(balance, showFractionsAlways=0). -->
             <span class="detail">
               {row.shipName ?? "No ship"}
-              · {row.skillPoints ?? 0} SP
-              · {row.balance ?? 0} ISK
+              · {formatNumeric({ int: row.skillPoints ?? 0 }, { useGrouping: true })} SP
+              · {formatWholeIsk(String(row.balance ?? 0), "round")}
             </span>
             {#if busyCharacterID === row.characterID}
               <span class="detail">Entering station…</span>
