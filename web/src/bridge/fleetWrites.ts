@@ -272,6 +272,18 @@ export async function leaveFleet(act: Ask): Promise<void> {
   await act("fleetObjectHandler", "LeaveFleet", []);
 }
 
+// --- Where the pilot is, told to its fleet ---------------------------------------------
+//
+// THE CALL, as fleetSvc.UpdateFleetInfoThread (1798 to 1810) makes it: self.fleet.UpdateMemberInfo(
+// self.GetMyShipTypeID()), on the fleet's own object, which the BFF holds; the BFF puts the pilot's own ship's type in
+// whatever is named here (gamePort/retailCalls.js withOwnShipType). The server takes the member's system, station and
+// ship from the session that makes it (fleetRuntime updateMemberInfo): the fleet keeps each member where it was told.
+
+/** Tells the pilot's fleet where the pilot is now and in what ship. Fails as the call fails. */
+export async function updateFleetMemberInfo(act: Ask, shipTypeID: number | null): Promise<void> {
+  await act("fleetObjectHandler", "UpdateMemberInfo", [shipTypeID]);
+}
+
 // --- A member kicked, and the boss handed on ------------------------------------------
 //
 // THE CALLS, as the client makes them from the fleet's menu for a member (menusvc.py FleetMenu): fleetSvc.KickMember

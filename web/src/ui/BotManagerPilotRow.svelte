@@ -34,6 +34,7 @@
   import { startHere, startOnServer, type StartOutcome } from "../bots/startRun.ts";
   import type { StationSlice } from "../store/clientStore.ts";
   import type { BotsState, CustomBotState, FlightState } from "../store/types.ts";
+  import { deriveDocked } from "./tabs.ts";
   import ActionButton from "./ActionButton.svelte";
 
   let {
@@ -120,12 +121,13 @@
   // slices. A server-only row (no tab held here) has no station/flight
   // reading to derive a location from at all — said plainly rather than
   // guessed at.
+  // (Docked, the station or its system; in space, the flight's system: the station slice keeps the last station read
+  // after an undock, and named a station the pilot had left.)
   const where = $derived(
     session
-      ? (station?.station?.stationName ??
-          station?.station?.solarSystemName ??
-          flight?.solarSystemName ??
-          "Unknown")
+      ? (deriveDocked(flight?.status ?? null, station?.online ?? null)
+          ? (station?.station?.stationName ?? station?.station?.solarSystemName ?? flight?.solarSystemName ?? "Unknown")
+          : (flight?.solarSystemName ?? "Unknown"))
       : "No tab open here",
   );
 

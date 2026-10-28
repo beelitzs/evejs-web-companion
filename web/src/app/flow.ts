@@ -771,7 +771,7 @@ export interface WalletSharesRead {
 }
 import { readAllianceFittings, readCharacterFittings, readCorporationFittings } from "../bridge/fittingReads.ts";
 import type { FleetFinderRead } from "../nav/fleetJoinWatch.ts";
-import { acceptFleetInvite as acceptFleetInviteCall, applyToJoinFleet as applyToJoinFleetCall, createFleetBroadcasts, declineFleetInvite as declineFleetInviteCall, formFleet as formFleetCall, inviteToFleet as inviteToFleetCall, kickFleetMember as kickFleetMemberCall, leaveFleet as leaveFleetCall, makeFleetLeader as makeFleetLeaderCall, moveFleetMember as moveFleetMemberCall, tagFleetTarget, addToWatchlist as addToWatchlistCall, removeFromWatchlist as removeFromWatchlistCall, type FleetApplyOutcome } from "../bridge/fleetWrites.ts";
+import { acceptFleetInvite as acceptFleetInviteCall, applyToJoinFleet as applyToJoinFleetCall, createFleetBroadcasts, declineFleetInvite as declineFleetInviteCall, formFleet as formFleetCall, inviteToFleet as inviteToFleetCall, kickFleetMember as kickFleetMemberCall, leaveFleet as leaveFleetCall, makeFleetLeader as makeFleetLeaderCall, moveFleetMember as moveFleetMemberCall, tagFleetTarget, updateFleetMemberInfo as updateFleetMemberInfoCall, addToWatchlist as addToWatchlistCall, removeFromWatchlist as removeFromWatchlistCall, type FleetApplyOutcome } from "../bridge/fleetWrites.ts";
 import { BOOKMARK_EXPIRY, bookmarkScanResult as bookmarkScanResultCall, addFolder as addFolderCall, addToKnownFolders as addToKnownFoldersCall, copyBookmarks as copyBookmarksCall, moveBookmarks as moveBookmarksCall, removeFromKnownFolders as removeFromKnownFoldersCall, type MovedOrCopied, bookmarkLocation as bookmarkLocationCall, bookmarkStaticLocation as bookmarkStaticLocationCall, createSubfolder as createSubfolderCall, updateFolder as updateFolderCall, type FolderAccess, deleteBookmarks as deleteBookmarksCall, deleteFolder as deleteFolderCall, deleteSubfolder as deleteSubfolderCall, setFolderActive as setFolderActiveCall, updateBookmark as updateBookmarkCall, updateSubfolder as updateSubfolderCall } from "../bridge/bookmarkWrites.ts";
 import { giveIskFromWallet as giveIskFromWalletCall, giveMoney as giveMoneyCall, transferValue, transferReason } from "../bridge/giveMoney.ts";
 import { afterArriving, destinationValid, isPlayerItemID, isWaypointPlace, keepWaypoints, movedWaypoint, readWaypoints, withWaypoint, withoutWaypoint, type DestinationFacts, type PilotPlace } from "../nav/waypoints.ts";
@@ -5102,6 +5102,22 @@ export function createAppFlow(store: ClientStore, options: AppFlowOptions = {}):
   // being shown (applyLiveFrame).
   const botPresses = createBotPresses();
 
+  // fleetSvc.UpdateFleetInfo and UpdateFleetInfoThread (1789 to 1810): in a fleet, the pilot's place and ship are told to
+  // it UPDATEFLEETMEMBERDELAY_SEC (30) after a change of system, ship or structure, one telling at a time, and none where
+  // the pilot has left the fleet meanwhile (bridge/fleetWrites.ts updateFleetMemberInfo). Never told, EveJS kept each
+  // member where it joined, and the Fleet window said so of a pilot two systems on.
+  const UPDATE_FLEET_MEMBER_DELAY_MS = 30_000;
+  let fleetInfoUpdate: ReturnType<typeof setTimeout> | null = null;
+  function updateFleetInfo(): void {
+    if (store.fleet.get().availability !== "ready" || fleetInfoUpdate !== null) return;
+    fleetInfoUpdate = setTimeout(() => {
+      fleetInfoUpdate = null;
+      if (store.fleet.get().availability !== "ready") return;
+      void updateFleetMemberInfoCall(bridgeDo, store.flight.get().status?.shipTypeID ?? null).catch(() => {});
+    }, UPDATE_FLEET_MEMBER_DELAY_MS);
+    if (typeof fleetInfoUpdate === "object" && "unref" in fleetInfoUpdate) fleetInfoUpdate.unref();
+  }
+
   // The BFF said the pilot's stream has ended: its connection is gone (the game server closed it, or the BFF lost
   // it). The retail client puts up its connection-lost notice the moment its connection closes (disconnectNotice.py),
   // so one read finds out at once whether the pilot is still on, and a pilot that is not goes offline, as any read
@@ -5867,6 +5883,9 @@ export function createAppFlow(store: ClientStore, options: AppFlowOptions = {}):
     // dock or jump, or the server's own move (a capsule sent to its clone's station, a GM's move). The page reads its
     // place again, from what the pilot's transport has of the session.
     const placeRead = sessionNames?.some((name) => VIEW_SESSION_NAMES.has(name)) ? loadFlightStatus().catch(() => {}) : null;
+    // fleetSvc.OnSessionChanged (1689 to 1695): another system, ship or structure, and the client tells its fleet where it
+    // is now (UpdateFleetInfo, below).
+    if (sessionNames?.some((name) => name === "solarsystemid" || name === "shipid" || name === "structureid")) updateFleetInfo();
     // dungeonTracking.ProcessSessionChange (56 to 61): another location, and the dungeon tracked is let go.
     if (sessionNames?.some((name) => name === "locationid" || name === "solarsystemid" || name === "stationid" || name === "structureid")) {
       currentDungeon = null;

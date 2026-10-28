@@ -45,11 +45,12 @@
   // a docked station name (e.g. "Jita IV - Moon 4 - Caldari Navy Assembly Plant")
   // blew the widths right out. The full location is kept for the hover title.
   const stateLabel = $derived(isDocked ? "Docked" : "In space");
+  // Docked, the station (or its system); in space, the system the flight is in. The station slice keeps the last
+  // station read after an undock, which named a station the pilot had left.
   const where = $derived(
-    $station.station?.stationName ??
-      $station.station?.solarSystemName ??
-      $flight.solarSystemName ??
-      null,
+    isDocked
+      ? ($station.station?.stationName ?? $station.station?.solarSystemName ?? $flight.solarSystemName ?? null)
+      : ($flight.solarSystemName ?? null),
   );
 </script>
 
