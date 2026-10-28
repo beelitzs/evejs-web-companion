@@ -1,7 +1,6 @@
 # Making the native client layer optional (B2)
 
-Plan, 2026-10-28, approved by the operator the same day. **Done:** phases 1 and 2, phase 3, and phase 4's 4a, with
-the results under each. 4b, prebuilt add-ons, is left for later. Every line reference was read in the code on master at `f73c7db2`; anything
+Plan, 2026-10-28, approved by the operator the same day. **Done:** every phase, 1 to 4, with the results under each. Every line reference was read in the code on master at `f73c7db2`; anything
 inferred and not yet seen live is marked *inferred*.
 
 ## The goal
@@ -260,8 +259,23 @@ Studio refused every game-port login. That was B2 again, by another cause.
   came online. Nothing native was written, and the install's own tables were still read. 26510, with Visual Studio,
   still runs the layer.
 
-**4b, prebuilt add-ons: not now** (recommended and approved 2026-10-28). Revisit if a release needs the native
-layer's exact parity on machines without Visual Studio.
+**4b, prebuilt add-ons: done 2026-10-28**, at the operator's word the same day: "we need to pre-compile and ship
+with the project. We want to be able to play eve in a web browser, even on a phone maybe in the future". The add-ons
+run in the BFF on its host, never on the player's device, so this is for a host with the client and no compiler.
+- **Shipped:** both binaries, their licences and a manifest are in `scripts/native-prebuilt/win32-x64/`. The manifest
+  names, for each, the digest of the sources it was built from and the SHA-256 of its bytes.
+- **Used first:** a build that finds the shipped binary for its sources as they are, with its bytes as recorded, puts it
+  in its cache and compiles nothing (`scripts/native-prebuilt-binaries.js`). Sources changed since are compiled as
+  before. The readiness check counts a shipped binary as built.
+- **Line endings:** a source's digest is now taken over its bytes as git keeps them (CRLF read as LF), so a Windows
+  checkout and an LF one find the same binary.
+- **Kept current:** `npm run build:native-prebuilt` compiles both from the sources as they are and rewrites the folder.
+  Run it after any change to `scripts/native-prefs` or `scripts/native-clock`, and commit what it writes.
+- **What they need:** each imports only `node.exe` and `KERNEL32.dll`, with the C runtime linked in statically, so no
+  Visual C++ redistributable is needed. Node-API 8; built with Node 24.16.0. Windows x64 only.
+- **Seen live:** a BFF on 26513 with Visual Studio hidden, a fresh data folder, and the clock's cache moved aside started
+  with the native layer on. Test Three came online. Both cached binaries were the shipped ones byte for byte, nothing
+  was compiled, and the native logs were written. 26510 still runs the layer, from its own cache.
 
 ## What a BFF without the install gives up
 
@@ -285,7 +299,8 @@ This is for the release notes, so nobody mistakes it for the native path.
 Phases 1 and 2 needed no decision beyond approving this plan. All three are taken:
 1. `auto` plus `off`, with the approval.
 2. Phase 3, 2026-10-28: port `GetItemDescriptor`; fix the releases in EveJS rather than imitate them.
-3. Phase 4, 2026-10-28: `auto` checks the machine (4a); no prebuilt add-ons for now (4b).
+3. Phase 4, 2026-10-28: `auto` checks the machine (4a), and the add-ons ship prebuilt (4b), the second at the
+   operator's later word that day.
 
 ## Noticed, not part of this plan
 
