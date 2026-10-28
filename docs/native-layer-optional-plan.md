@@ -1,7 +1,8 @@
 # Making the native client layer optional (B2)
 
-Plan, 2026-10-28. A proposal for the operator's approval: no code has changed. Every line reference was read in the
-code on master at `f73c7db2`; anything inferred and not yet seen live is marked *inferred*.
+Plan, 2026-10-28, approved by the operator the same day. **Phase 1 is done** (`4d37e5b5`, results under it); phases
+2 to 4 are open. Every line reference was read in the code on master at `f73c7db2`; anything inferred and not yet
+seen live is marked *inferred*.
 
 ## The goal
 
@@ -111,6 +112,32 @@ pilot connects, never by catching a failure.
 4. **Regression on 26510, the BFF with the install.** The same flows, with the native logs written as before.
 
 The wiring is one small commit. The sweep's fixes are the unknown part of this plan.
+
+**Done 2026-10-28.** The setting and the wiring are `4d37e5b5`. Seen live on a check BFF on 26512 with no client
+root, whose start-up log says "Native client layer: off (no EVEJS_CLIENT_ROOT)":
+- **Test Pilot:** logged in from the roster.
+  - Fitting: took the 1MN Civilian Afterburner offline, unfitted it, moved it hangar to cargo and back, and fitted it
+    again. CPU went 2 → 0 → 2 of 130 tf; the module came back online by itself.
+  - Space: undocked and ran the afterburner, which settled at 525–526 m/s. Docked.
+  - Travel: flew to New Caldari by the autopilot (warp, gate jump).
+  - The market's order book for Antimatter Charge S was read.
+  - Every Neocom window opened.
+- **Test Two:** the test2 account signed in, its character selection (`GetCharacterSelectionData`, where B2 failed)
+  listed three pilots, and Test Two came online docked.
+- **No fault of the off mode was found:** no failed reply, no page error, nothing in the BFF's error log but the
+  empty icon cache's 404s. Nothing was built or started for the native layer, and nothing was written under
+  `native-*`.
+- **Regression:** on 26510, with the install ("Native client layer: on"), the same fitting and flight steps gave
+  the same numbers (CPU 2/130, 687 EHP, 525 m/s), and the native logs were written as before.
+- **Seen, not caused by the mode (the same on both BFFs):**
+  - The selection list wrote raw numbers. Fixed in `90d5cf2a`.
+  - The HUD's capacitor stays at 100% while the afterburner cycles, where 5 GJ every 10 s on 125 GJ should hold it
+    near 95%. On the release bug list as B37.
+- **The install's absence shows only where phase 2 says:**
+  - Skills say "The client's certified plans could not be read".
+  - Corporation says its role data could not be read.
+  - A UI texture answers 404.
+  - The page's own fallback words stand in for the client's (the route's "Take off" for "remove waypoint").
 
 ### Phase 2: the page's hard failures without the install
 
