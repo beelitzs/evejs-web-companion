@@ -3097,6 +3097,18 @@
   .char-bar.narrow .global-launch-text { display: none; }
   .char-bar.narrow .char-bar-status-text { display: none; }
   .char-bar.narrow .char-bar-list { flex: 0 1 auto; min-width: 0; }
+  /* ⚠ THE DOORS GIVE WAY BEFORE THE PILOT DOES. The global launchers joined the
+   * bar after the numbers above were measured, as `flex: 0 0 auto`: six doors,
+   * 215px at 375, so the chip (the one thing left that could shrink) went to
+   * 0px and the bar still ran 53px past the screen, "+ Add character" with it.
+   * On a narrow bar the strip shrinks first, a hundred to the chip's one, and
+   * scrolls sideways, so every door is a swipe away and the pilot stays named. */
+  .char-bar.narrow .global-launchers {
+    flex: 0 100 auto;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
   /* ⚠ THE CHIP GIVES UP ITS FIXED WIDTH HERE. It is `flex: 0 0 11rem` so several
    * pilots line up as identical tabs — right on a wide bar, and too wide for a
    * phone. With one chip on screen there is nothing to line up with, and the
