@@ -1,8 +1,8 @@
 # Making the native client layer optional (B2)
 
-Plan, 2026-10-28, approved by the operator the same day. **Phase 1 is done** (`4d37e5b5`, results under it); phases
-2 to 4 are open. Every line reference was read in the code on master at `f73c7db2`; anything inferred and not yet
-seen live is marked *inferred*.
+Plan, 2026-10-28, approved by the operator the same day. **Phases 1 and 2 are done** (results under each); phases 3
+and 4 wait on the operator's decisions. Every line reference was read in the code on master at `f73c7db2`; anything
+inferred and not yet seen live is marked *inferred*.
 
 ## The goal
 
@@ -154,6 +154,46 @@ Most of the page already copes without install data. These places throw or refus
 
 The no-install source is used only when there is no install; with one, nothing changes.
 
+**Done 2026-10-28** (`1b3e6134`). The table above was read from the code before phase 1. A sweep of every page reader that throws
+when the install's data is missing (`available` false, "could not be read", "installed client") corrected it:
+
+| Where | What the sweep found | Now, with no install |
+|---|---|---|
+| dogma-types (`/api/client-data/dogma-types`) | Every **Show Info** window stopped: it picks its kind by the type's category from here ("The information type's category could not be read"). The owner-type row and the fitting simulation row are the same route. | Answered from the SDE's tables of the same build, in the client loaders' shapes (`src/clientData/sdeBuiltData.js`). |
+| chat rules | Start Conversation was never offered: its player check needs the three role bits and `groupCharacter`. | The four values as the client's code has them (`serviceConst.py`, `inventorycommon/const.py`). |
+| `/api/names`, owner 1 | The owner record answered 503. | "EVE System", the install's English for `UI/Chat/ChatEngine/EveSystem`. |
+| direct trades | Not the install's: volumes and type lists come from the SDE (`staticData`). | Unchanged. |
+| corporation roles and races | The member views (query, role summary, edit member, administration) need the client's role tables. No source outside the install has them: neither the SDE nor EveJS. The race name is read in the edit-member dialog just before the roles, so it is moot without them. | Unchanged: install-only, listed below. |
+| config flag spellings | Reached only when the server sets `banned_words_search_enabled`, which EveJS does not. | Unchanged. |
+| asset search meta keywords | The keywords are the client's words, so they cannot be typed without the install. | Unchanged. |
+
+The SDE stand-in was compared with the install of the same build, every row of every table it answers, on what the
+route reads: 52,590 types, 3,411 effects and 2,855 attributes. Two corrections came from the comparison:
+- the SDE leaves empty fields out, and the loaders give 0 (a radius 1);
+- an attribute's default is a float32 in the client's file (`Math.fround` matched all 2,855).
+
+What still differs:
+- **Required skills:** the order of a type's required skills differs for 1,379 types. The client's table has its own
+  order, and no simple rule from the SDE gives it (the best, Python 2 dict order, missed 111 types). The page's
+  dogma picks up required-skill modifiers in that order, so a figure can differ in its last binary digit.
+- **Radius:** three environment types have a radius of 0, not 1.
+- **Empty rows:** the client keeps empty dogma and material rows for some types, which the route reads the same as no
+  row.
+
+Seen live on a check BFF on 26512 with no client root:
+- **The routes, against 26510 with the install:** the dogma-types answers for 200 types across every category have
+  the same digest once required skills are sorted. Their effects (229) and attributes (602) are identical.
+- **Show Info:** opened from the market's type menu: "Antimatter Charge S · Item", the same body as on 26510.
+- **The fitting window:** Test Pilot's Reaper shows the same figures in both modes (CPU 2/130, grid 1/24, the
+  capacitor sustainable at 94.9%, 687 EHP, 341.0 m/s, a 6.98 s align). Only the words differ.
+- **Chat:** Contacts offered Start Conversation for Test Two. A private room opened (`CreatePrivateChannel`, then the
+  elevated `AddCharacterToChannel`) and a message went in. Test Two answered from 26510 into the same room, and both
+  saw both messages and both members.
+- **Owner 1:** the record and the display name are "EVE System" in both modes.
+- **The BFF's error log:** only the empty icon cache's 404s, the second client's disconnect, and an NPC
+  corporation's fitting collection refused. 26510 logs the same refusal for the same pilot, so it is the pilot's,
+  not the mode's.
+
 The cosmetic gaps stay as they are, listed in the release notes:
 - the client's own words and dialog texts (the page words what it can);
 - UI textures (skill group icons and medals answer 404);
@@ -194,7 +234,8 @@ This is for the release notes, so nobody mistakes it for the native path.
   - int versus float kinds, and default values;
   - Python's NaN and truth rules;
   - the original session checks on bound inventory objects.
-- **The install's page data:** as listed in phase 2.
+- **The install's page data:** as listed in phase 2, and the corporation member views, which need the client's role
+  tables. Show Info and the page's own dogma read the SDE instead, with the required-skill order noted there.
 - **Other systems:** on Linux and macOS the off mode is the only mode (`python27.dll` is a Windows file). Whether the
   rest of the BFF runs there has not been checked.
 
@@ -204,7 +245,7 @@ This is for the release notes, so nobody mistakes it for the native path.
 2. **Phase 3:** port the two wire messages to the JS path, or accept its wire as it was before 2026-10-21.
 3. **Phase 4:** ship prebuilt add-ons, or leave the native layer to machines with Visual Studio.
 
-Phases 1 and 2 need no decision beyond approving this plan.
+Phases 1 and 2 needed no decision beyond approving this plan. Decision 1 was taken with the approval; 2 and 3 are open.
 
 ## Noticed, not part of this plan
 
