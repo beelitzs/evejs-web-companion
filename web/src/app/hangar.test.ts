@@ -244,9 +244,12 @@ test("a full account offers no slot", () => {
 // --- the strings ------------------------------------------------------------
 
 test("ISK reads as a magnitude, not a wallet total", () => {
+  // The client's short amount (contractutils.FmtISKWithDescription): from ten thousand up, cut to two decimals of
+  // its unit and shown with both (`decimalPlaces=2`); below that, the whole amount.
   assert.equal(formatIskCompact(4.82e9), "4.82b");
-  assert.equal(formatIskCompact(134.9e6), "134.9m");
-  assert.equal(formatIskCompact(86_400), "86k");
+  assert.equal(formatIskCompact(9_999_207_418), "9.99b", "cut, never rounded up to 10.00b");
+  assert.equal(formatIskCompact(134.9e6), "134.90m");
+  assert.equal(formatIskCompact(86_400), "86.40k");
   assert.equal(formatIskCompact(412), "412");
   assert.equal(formatIskCompact(null), "—", "an unread balance is a dash, never a zero");
 });

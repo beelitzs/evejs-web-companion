@@ -17,7 +17,7 @@
   import { onMount } from "svelte";
   import { BridgeCallError } from "../bridge/callMethod.ts";
   import { isSessionLost } from "../app/flow.ts";
-  import { formatIsk } from "./isk.ts";
+  import { formatWholeIsk } from "./isk.ts";
   import type { ClientStore } from "../store/clientStore.ts";
   import type { AppFlow } from "../app/flow.ts";
   import { panelErrorWords } from "../bridge/refusals.ts";
@@ -115,7 +115,8 @@
       <tbody>
         <tr>
           <th scope="row">Balance</th>
-          <td class="num">{formatIsk($wallet.cashBalance)}</td>
+          <!-- walletUtil.FmtWalletCurrency, with its "show cents" setting off as it is by default: whole ISK. -->
+          <td class="num">{formatWholeIsk($wallet.cashBalance, "truncate")}</td>
         </tr>
       </tbody>
     </table>

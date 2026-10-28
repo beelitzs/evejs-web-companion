@@ -110,11 +110,12 @@ test("the rail shows the pilot, by name and by initials", () => {
 
 test("the wallet readout is shown, and links to the real figure", () => {
   const body = renderRail(false, { cashBalance: "184250000.55" });
-  // The glance is rounded...
-  assert.match(body, /184\.2M/);
-  // ...and the exact, grouped amount rides on the accessible name, because the
-  // short form ROUNDS and must never be mistaken for the balance itself.
-  assert.match(body, /aria-label="Wallet, 184,250,000\.55 ISK/);
+  // The glance is the client's short amount (FmtISKWithDescription: cut to two decimals)...
+  assert.match(body, /184\.25M/);
+  // ...and the grouped amount rides on the accessible name, as the client's Neocom
+  // tooltip has it: FmtISK(wealth, showFractions) with "show cents" off, the default,
+  // whole ISK rounded (neocomTooltips.py 17 to 18, eveFormat.py 71 to 72).
+  assert.match(body, /aria-label="Wallet, 184,250,001 ISK/);
 });
 
 test("an unread wallet shows a dash, never a zero balance", () => {

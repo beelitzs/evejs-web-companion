@@ -12,7 +12,7 @@
   import { onMount } from "svelte";
   import { BridgeCallError } from "../bridge/callMethod.ts";
   import { isSessionLost } from "../app/flow.ts";
-  import { formatIsk } from "./isk.ts";
+  import { formatWholeIsk } from "./isk.ts";
   import type { ClientStore } from "../store/clientStore.ts";
   import type { AppFlow } from "../app/flow.ts";
   import type { CorpWalletDivision } from "../store/types.ts";
@@ -145,7 +145,8 @@
         {#each $wallet.corpDivisions as division (division.key)}
           <tr>
             <th scope="row">{divisionLabel(division)}</th>
-            <td class="num">{formatIsk(division.balance)}</td>
+            <!-- corpDivisionsPanel.py 48: FmtWalletCurrency(division.balance), whole ISK with cents off. -->
+            <td class="num">{formatWholeIsk(division.balance, "truncate")}</td>
           </tr>
         {/each}
       </tbody>

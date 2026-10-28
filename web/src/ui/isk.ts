@@ -27,3 +27,31 @@ export function formatIsk(value: string | null): string {
   const frac = (match[3] ?? "").slice(0, 2).replace(/0+$/, "");
   return `${sign}${whole}${frac ? `.${frac}` : ""} ISK`;
 }
+
+/**
+ * A wallet amount in whole ISK, as the client shows one while its "show cents" wallet setting is off, the default
+ * (walletConst.py 16, walletShowCents False).
+ *
+ * - "truncate": the wallet's own figures, walletUtil.FmtWalletCurrency (walletUtil.py 26 to 31): an amount past one
+ *   ISK is cut to its whole part (`int(amt)`), so 1,939,882,211.6 shows 1,939,882,211.
+ * - "round": the Neocom wallet's tooltip, FmtISK(wealth, showFractions) with showFractions off
+ *   (neocomTooltips.py 17 to 18), which is FmtCurrency's `int(round(amount))` (eveFormat.py 71 to 72).
+ *
+ * The same bigint-safe decimal string and the same "—" and verbatim rules as formatIsk.
+ */
+export function formatWholeIsk(value: string | null, mode: "truncate" | "round"): string {
+  if (value === null) {
+    return "—";
+  }
+  const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(value.trim());
+  if (!match) {
+    return value;
+  }
+  let whole = BigInt(match[2] ?? "0");
+  const frac = match[3] ?? "";
+  // Python 2's round goes half away from zero; FmtWalletCurrency rounds too below one ISK, where int() is not taken.
+  if ((mode === "round" || whole === 0n) && frac !== "" && frac.charCodeAt(0) >= 53) {
+    whole += 1n;
+  }
+  return `${whole === 0n ? "" : match[1] ?? ""}${whole.toLocaleString("en-US")} ISK`;
+}

@@ -166,11 +166,17 @@ export function eveClock(now: Date): string {
 /**
  * A wallet balance shortened to fit a rail about three characters wide.
  *
- * ⚠ IT ROUNDS, SO IT MUST NEVER READ AS EXACT. The Wallet panel is where the
- * real figure lives (grouped in full, via `formatIsk`, and bigint-exact); this
- * is a glance. It keeps one decimal and a magnitude suffix, and the button's
- * accessible name carries the full amount so nothing is lost to someone who
- * needs it.
+ * ⚠ IT IS SHORTENED, SO IT MUST NEVER READ AS EXACT. The Wallet panel is where
+ * the real figure lives; this is a glance, and the button's accessible name
+ * carries the full amount so nothing is lost to someone who needs it.
+ *
+ * The client's own short amount (contractutils.FmtISKWithDescription, justDesc):
+ * from ten thousand up, the amount in thousands, millions, billions or
+ * trillions, CUT (not rounded) to two decimals and shown with both
+ * (`decimalPlaces=2`, `useGrouping`); below that, the whole amount. So
+ * 9,999,207,418 is 9.99B, never 10.0B, and the hangar's cards say the same
+ * (app/hangar.ts formatIskCompact). The client writes the word ("Billion");
+ * the rail has room for its letter.
  *
  * Works on the DECIMAL STRING, never through Number: an ISK balance routinely
  * exceeds 2^53, and a wallet that silently rounded at the top end would be
@@ -185,19 +191,19 @@ export function shortIsk(value: string | null | undefined): string {
     return "—";
   }
   const sign = match[1] ?? "";
-  const digits = match[2] ?? "0";
+  const digits = BigInt(match[2] ?? "0").toString();
   const units = [
-    { power: 12, suffix: "T" },
-    { power: 9, suffix: "B" },
-    { power: 6, suffix: "M" },
-    { power: 3, suffix: "K" },
+    { power: 12, from: 13, suffix: "T" },
+    { power: 9, from: 10, suffix: "B" },
+    { power: 6, from: 7, suffix: "M" },
+    { power: 3, from: 5, suffix: "K" },
   ];
-  for (const { power, suffix } of units) {
-    if (digits.length > power) {
-      const whole = digits.slice(0, digits.length - power);
-      const tenth = digits[digits.length - power] ?? "0";
-      return `${sign}${whole}${tenth === "0" ? "" : `.${tenth}`}${suffix}`;
+  for (const { power, from, suffix } of units) {
+    if (digits.length >= from) {
+      const whole = BigInt(digits.slice(0, digits.length - power)).toLocaleString("en-US");
+      const cents = digits.slice(digits.length - power, digits.length - power + 2);
+      return `${sign}${whole}.${cents}${suffix}`;
     }
   }
-  return `${sign}${digits}`;
+  return `${sign}${BigInt(digits).toLocaleString("en-US")}`;
 }

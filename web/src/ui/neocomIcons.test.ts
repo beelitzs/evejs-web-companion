@@ -140,29 +140,34 @@ test("midnight reads 00:00, not 24:00", () => {
 });
 
 // --- the shortened wallet ----------------------------------------------------
+//
+// The client's short amount, contractutils.FmtISKWithDescription (justDesc): from
+// ten thousand up, thousands, millions, billions or trillions cut to two decimals
+// (its labels' `decimalPlaces=2`, `useGrouping`); below that, the whole amount.
 
-test("a small balance is shown as it is", () => {
+test("a balance under ten thousand is shown whole, grouped", () => {
   assert.equal(shortIsk("842"), "842");
+  assert.equal(shortIsk("1500"), "1,500");
 });
 
-test("thousands, millions and billions get their suffix", () => {
-  assert.equal(shortIsk("1500"), "1.5K");
-  assert.equal(shortIsk("2400000"), "2.4M");
-  assert.equal(shortIsk("7300000000"), "7.3B");
+test("thousands from ten thousand, millions and billions get their suffix and two decimals", () => {
+  assert.equal(shortIsk("86400"), "86.40K");
+  assert.equal(shortIsk("2400000"), "2.40M");
+  assert.equal(shortIsk("7300000000"), "7.30B");
 });
 
-test("a round amount drops the pointless decimal", () => {
-  assert.equal(shortIsk("2000000"), "2M");
+test("a round amount keeps both decimals, as the client's decimalPlaces=2 does", () => {
+  assert.equal(shortIsk("2000000"), "2.00M");
 });
 
 test("a balance past 2^53 is shortened EXACTLY, not through Number", () => {
   // 9007199254740993 is Number.MAX_SAFE_INTEGER + 2, which a float cannot hold.
   // Routing this through Number gives 9.007199254740992e15 and the wrong digits.
-  assert.equal(shortIsk("9007199254740993"), "9007.1T");
+  assert.equal(shortIsk("9007199254740993"), "9,007.19T");
 });
 
 test("a negative balance keeps its sign", () => {
-  assert.equal(shortIsk("-4200000"), "-4.2M");
+  assert.equal(shortIsk("-4200000"), "-4.20M");
 });
 
 test("an unread or nonsensical balance is a dash, never a zero", () => {
@@ -173,6 +178,8 @@ test("an unread or nonsensical balance is a dash, never a zero", () => {
   assert.equal(shortIsk("not a number"), "—");
 });
 
-test("a fractional balance is truncated toward the magnitude, not rounded up", () => {
-  assert.equal(shortIsk("1999.99"), "1.9K");
+test("a fractional balance is cut toward the magnitude, not rounded up", () => {
+  // FmtISKWithDescription takes long(isk / 10**7) for billions: 9,999,207,418 is 9.99, never 10.00.
+  assert.equal(shortIsk("19999.99"), "19.99K");
+  assert.equal(shortIsk("9999207418"), "9.99B");
 });

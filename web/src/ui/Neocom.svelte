@@ -22,7 +22,7 @@
   import { launchableTabsFor, type TabID } from "./tabs.ts";
   import { isWindowTab } from "./desktop.ts";
   import { NEOCOM_GLYPHS, eveClock, portraitInitials, shortIsk } from "./neocomIcons.ts";
-  import { formatIsk } from "./isk.ts";
+  import { formatWholeIsk } from "./isk.ts";
   import OwnerPicture from "./OwnerPicture.svelte";
   import { clientTexture } from "./skillGroupIcons.ts";
   import { portraitDefaultPath, portraitUrl } from "./ownerImages.ts";
@@ -196,8 +196,8 @@
     <button
       type="button"
       class="neocom-readout neocom-wallet"
-      title={`Wallet — ${formatIsk(balance)}`}
-      aria-label={`Wallet, ${formatIsk(balance)}. Open the wallet.`}
+      title={`Wallet — ${formatWholeIsk(balance, "round")}`}
+      aria-label={`Wallet, ${formatWholeIsk(balance, "round")}. Open the wallet.`}
       onclick={() => onSelect("wallet")}
     >
       <span class="neocom-readout-value">{shortIsk(balance)}</span>

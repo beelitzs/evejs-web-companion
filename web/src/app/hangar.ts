@@ -245,20 +245,30 @@ function compareNames(left: string, right: string): number {
 // --- the strings the screen prints -----------------------------------------
 
 /**
- * A compact ISK amount: "4.82b", "134.9m", "86k". Deliberately NOT ui/isk.ts —
+ * A compact ISK amount: "4.82b", "134.90m", "86.40k". Deliberately NOT ui/isk.ts —
  * that one groups an exact bigint-safe balance for a wallet, and a wallet's
- * "4,821,004,113.20 ISK" is unreadable eighteen times over in a dense grid. This
+ * "4,821,004,113 ISK" is unreadable eighteen times over in a dense grid. This
  * is a magnitude at a glance; the exact figure lives in the pilot's wallet.
+ *
+ * The client's own short amount, as the Neocom's glance has it (ui/neocomIcons.ts
+ * shortIsk; contractutils.FmtISKWithDescription): from ten thousand up, cut (not
+ * rounded) to two decimals of its unit and shown with both, and below that the
+ * whole amount, rounded as FmtISK without fractions rounds it. A balance of
+ * 9,999,207,418 is 9.99b here as on the rail, where it read "10.00b" beside "9.9B".
  */
 export function formatIskCompact(value: number | null): string {
   if (value === null || !Number.isFinite(value)) {
     return "—";
   }
   const abs = Math.abs(value);
-  if (abs >= 1e9) return `${(value / 1e9).toFixed(2)}b`;
-  if (abs >= 1e6) return `${(value / 1e6).toFixed(1)}m`;
-  if (abs >= 1e3) return `${Math.round(value / 1e3)}k`;
-  return `${Math.round(value)}`;
+  const sign = value < 0 ? "-" : "";
+  const cut = (unit: number): string =>
+    (Math.trunc(abs / (unit / 100)) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (abs >= 1e12) return `${sign}${cut(1e12)}t`;
+  if (abs >= 1e9) return `${sign}${cut(1e9)}b`;
+  if (abs >= 1e6) return `${sign}${cut(1e6)}m`;
+  if (abs >= 1e4) return `${sign}${cut(1e3)}k`;
+  return `${sign}${Math.round(abs).toLocaleString("en-US")}`;
 }
 
 /** A compact skill-point total: "134.9m SP", "412k SP". */
