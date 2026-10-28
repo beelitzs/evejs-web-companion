@@ -219,6 +219,18 @@
   const activeRoom = $derived($conversations.rooms.find(room => room.channel === $conversations.active) ?? null);
   const active = $derived(activeRoom?.state ?? $chat[$chat.activeChannel]);
 
+  // A line's speaker is named from the table of owners, as the client's window names it (xmppchatsvc.py
+  // _HandleMessageFromAdmin: window.Receive(charid), cfg.eveowners), not from the room's roster alone: the room's own
+  // voice (its message of the day) speaks as owner 1, the EVE System, who is in no roster and came out "Character 1".
+  // The roster's name stands while the owner's is asked for.
+  $effect(() => {
+    const ids = new Set(active.messages.map((message) => message.characterID).filter((id) => id > 0));
+    if (ids.size > 0) flow.requestNames([...ids].map((id) => ({ kind: "owner" as const, id })));
+  });
+  function speakerName(message: { readonly characterID: number; readonly characterName: string }): string {
+    return resolvedName($names.resolved, "owner", message.characterID, message.characterName);
+  }
+
   // The active channel's resolved name (Local → system, Corp → corporation), or
   // "" while it resolves — the header then shows just "Local" / "Corp", never the
   // raw room string.
@@ -278,7 +290,7 @@
           <ul class="message-list">
             {#each active.messages as message, index (index)}
               <li>
-                <span class="author">{message.characterName}</span>:
+                <span class="author">{speakerName(message)}</span>:
                 <span class="body">{#each mailBodyLines(message.message) as line, place (place)}{#if place > 0}<br />{/if}{#each line as run, at (at)}{@const follower = run.link === null ? null : followerOf(run.link, run.text)}{#if follower !== null}<button type="button" class="evelink {follower.kind}" title={follower.hint} onclick={follower.follow} draggable="true" ondragstart={(event) => startLinkDrag(event, run.link ?? "", run.text)}>{run.text}</button>{:else}<span class:chat-bold={run.bold} class:chat-italic={run.italic} class:chat-underline={run.underline || run.link !== null} title={run.link ?? undefined}>{run.text}</span>{/if}{/each}{/each}</span>
               </li>
             {/each}
