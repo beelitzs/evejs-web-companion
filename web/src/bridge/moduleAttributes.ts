@@ -23,12 +23,13 @@
 //   114 emDamage            unit 113 (HP)    73  duration (cycle)      unit 101 (ms)
 //   118 thermalDamage       unit 113 (HP)    54  maxRange (optimal)    unit 1   (m)
 //   117 kineticDamage       unit 113 (HP)    158 falloff              unit 1   (m)
-//   116 explosiveDamage     unit 113 (HP)    160 trackingSpeed        (rad/s)
+//   116 explosiveDamage     unit 113 (HP)    160 trackingSpeed        no unit ("Turret Tracking")
 //   68  shieldBonus         unit 113 (HP)    76  maxTargetRange       unit 1   (m)
 //   84  armorDamageAmount   unit 113 (HP)    6   capacitorNeed        unit 114 (GJ)
 //   50  cpu                 unit 106 (tf)    30  power                unit 107 (MW)
 
 import type { DogmaAttribute } from "./boundDogma.ts";
+import { fmtAmt, pyRound, pyStrFloat } from "./pyNumbers.ts";
 
 const NUMBER = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 2 });
 
@@ -42,6 +43,14 @@ function asRange(value: number): string {
 /** A millisecond duration the server reports (rate of fire, cycle time) in seconds. */
 function asSeconds(milliseconds: number): string {
   return `${NUMBER.format(milliseconds / 1000)} s`;
+}
+
+/**
+ * An attribute with no unit, as the client writes one (`FormatValue(value)`, dogma/attributes/format.py 101 to 102
+ * and 112): a whole number by FmtAmt, any other as Python writes the float.
+ */
+function asUnitless(value: number): string {
+  return Math.abs(pyRound(value) - value) < 1e-10 ? fmtAmt(pyRound(value)) : pyStrFloat(value);
 }
 
 function asFixed(digits: number, suffix: string): (value: number) => string {
@@ -76,7 +85,8 @@ export const MODULE_ATTRIBUTES: readonly ModuleAttributeSpec[] = [
   { id: 73, label: "Activation time", unit: "s", format: asSeconds },
   { id: 54, label: "Optimal range", unit: "m", format: asRange },
   { id: 158, label: "Falloff", unit: "m", format: asRange },
-  { id: 160, label: "Tracking speed", unit: "rad/s", format: asFixed(4, " rad/s") },
+  // CCP's redefined tracking: its display name, and no unit in this build's SDE.
+  { id: 160, label: "Turret Tracking", unit: "", format: asUnitless },
   { id: 68, label: "Shield boost", unit: "HP", format: asFixed(0, " HP") },
   { id: 84, label: "Armor repaired", unit: "HP", format: asFixed(0, " HP") },
   { id: 76, label: "Max targeting range", unit: "m", format: asRange },
