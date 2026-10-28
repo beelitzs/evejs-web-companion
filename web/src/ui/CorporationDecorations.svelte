@@ -7,6 +7,7 @@
   import { medalLayersOf, type CorporationDecoration, type CorporationDecorationGraphic, type CorporationMedalAwardee, type MedalLayer } from "../bridge/corporationDecorations.ts";
   import MedalPreview from "./MedalPreview.svelte";
   import { showInfo } from "./showInfo.ts";
+  import { capturePointer, releasePointer } from "./pointerCapture.ts";
   import { DATE_LABELS, formatTemplate, plainText } from "../bridge/clientWords.ts";
   import { resolvedName } from "../store/names.ts";
   import { sortScrollRows } from "../bridge/scrollSort.ts";
@@ -63,7 +64,7 @@
     if (event.button !== 0 || !tableScroll) return;
     event.preventDefault();
     const handle = event.currentTarget as HTMLButtonElement;
-    handle.setPointerCapture(event.pointerId);
+    capturePointer(handle, event.pointerId);
     const cell = handle.closest("th")!.getBoundingClientRect(), scroll = tableScroll.getBoundingClientRect();
     const left = event.clientX - cell.width;
     resizing = { index, pointer: event.pointerId, startX: event.clientX, startWidth: cell.width, left, max: left + Math.max(24, scroll.right - 24 - cell.left), line: event.clientX, guide: event.clientX - scroll.left + tableScroll.scrollLeft };
@@ -78,7 +79,7 @@
     if (!cancelled && resizing.line !== resizing.startX) widthsSetting.set(headerNames[resizing.index]!, Math.max(24, Math.round(resizing.startWidth + resizing.line - resizing.startX)));
     resizing = null;
     const handle = event.currentTarget as HTMLButtonElement;
-    if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId);
+    releasePointer(handle, event.pointerId);
   }
   function changeSort(index: number): void {
     sortSetting.set(headerNames[index]!, index === sortIndex ? !$sortPreference.reversed : false);

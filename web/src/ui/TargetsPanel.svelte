@@ -5,6 +5,7 @@
   // locked or acquiring; its position is remembered per character.
   import TargetBracket from "./TargetBracket.svelte";
   import { buildTargets } from "./targetBracket.ts";
+  import { capturePointer, releasePointer } from "./pointerCapture.ts";
   import type { ClientStore } from "../store/clientStore.ts";
 
   let {
@@ -41,7 +42,7 @@
     const originX = x;
     const originY = y;
     const target = ev.currentTarget as HTMLElement;
-    target.setPointerCapture(ev.pointerId);
+    capturePointer(target, ev.pointerId);
     const move = (e: PointerEvent): void => {
       onMove(
         clamp(originX + (e.clientX - startX), 0, Math.max(0, rect.width - self.width)),
@@ -49,7 +50,7 @@
       );
     };
     const up = (): void => {
-      target.releasePointerCapture(ev.pointerId);
+      releasePointer(target, ev.pointerId);
       target.removeEventListener("pointermove", move);
       target.removeEventListener("pointerup", up);
     };

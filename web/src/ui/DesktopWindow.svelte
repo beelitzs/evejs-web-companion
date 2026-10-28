@@ -7,6 +7,7 @@
   // and clamps a drag so the title bar can never leave the desktop.
   import type { Snippet } from "svelte";
   import type { WinState } from "./desktop.ts";
+  import { capturePointer, releasePointer } from "./pointerCapture.ts";
 
   let {
     win,
@@ -57,14 +58,14 @@
     const originX = win.x;
     const originY = win.y;
     const target = ev.currentTarget as HTMLElement;
-    target.setPointerCapture(ev.pointerId);
+    capturePointer(target, ev.pointerId);
     const move = (e: PointerEvent): void => {
       const nx = originX + (e.clientX - startX);
       const ny = originY + (e.clientY - startY);
       onMove(clamp(nx, 0, Math.max(0, rect.width - 48)), clamp(ny, 0, Math.max(0, rect.height - 30)));
     };
     const up = (): void => {
-      target.releasePointerCapture(ev.pointerId);
+      releasePointer(target, ev.pointerId);
       target.removeEventListener("pointermove", move);
       target.removeEventListener("pointerup", up);
     };
@@ -81,14 +82,14 @@
     const originW = win.w;
     const originH = win.h;
     const target = ev.currentTarget as HTMLElement;
-    target.setPointerCapture(ev.pointerId);
+    capturePointer(target, ev.pointerId);
     const move = (e: PointerEvent): void => {
       const w = edge === "s" ? originW : originW + (e.clientX - startX);
       const h = edge === "e" ? originH : originH + (e.clientY - startY);
       onResize(w, h);
     };
     const up = (): void => {
-      target.releasePointerCapture(ev.pointerId);
+      releasePointer(target, ev.pointerId);
       target.removeEventListener("pointermove", move);
       target.removeEventListener("pointerup", up);
     };

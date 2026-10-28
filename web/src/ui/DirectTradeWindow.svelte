@@ -12,6 +12,7 @@
   import { formatNumeric } from "../bridge/pyNumbers.ts";
   import { resolvedName } from "../store/names.ts";
   import { showOwnerInfo } from "./ownerInfo.ts";
+  import { capturePointer, releasePointer } from "./pointerCapture.ts";
   import { portraitUrl, portraitDefaultPath } from "./ownerImages.ts";
   import { clientTexture } from "./skillGroupIcons.ts";
   import { notify } from "./notices.ts";
@@ -67,9 +68,9 @@
   function resizeSplit(event: PointerEvent): void {
     if (event.button !== 0) return;
     const handle = event.currentTarget as HTMLElement, parent = handle.parentElement!;
-    handle.setPointerCapture(event.pointerId);
+    capturePointer(handle, event.pointerId);
     const move = (ev: PointerEvent) => { const rect = parent.getBoundingClientRect(); split = Math.max(35, Math.min(65, (ev.clientY - rect.top) / rect.height * 100)); };
-    const end = () => { handle.releasePointerCapture(event.pointerId); handle.removeEventListener("pointermove", move); handle.removeEventListener("pointerup", end); };
+    const end = () => { releasePointer(handle, event.pointerId); handle.removeEventListener("pointermove", move); handle.removeEventListener("pointerup", end); };
     handle.addEventListener("pointermove", move); handle.addEventListener("pointerup", end);
   }
   onMount(() => session.flow.loadImageServer());

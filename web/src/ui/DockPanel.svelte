@@ -22,6 +22,7 @@
   import SpaceOverview from "./SpaceOverview.svelte";
   import StationPanel from "./StationPanel.svelte";
   import ErrorBoundary from "./ErrorBoundary.svelte";
+  import { capturePointer, releasePointer } from "./pointerCapture.ts";
   import type { ClientStore } from "../store/clientStore.ts";
   import type { AppFlow } from "../app/flow.ts";
 
@@ -75,13 +76,13 @@
     const startX = ev.clientX;
     const startW = width;
     const target = ev.currentTarget as HTMLElement;
-    target.setPointerCapture(ev.pointerId);
+    capturePointer(target, ev.pointerId);
     const move = (e: PointerEvent): void => {
       const next = startW - (e.clientX - startX);
       onResize(Math.max(MIN_W, Math.min(MAX_W, Math.round(next))));
     };
     const up = (): void => {
-      target.releasePointerCapture(ev.pointerId);
+      releasePointer(target, ev.pointerId);
       target.removeEventListener("pointermove", move);
       target.removeEventListener("pointerup", up);
     };
