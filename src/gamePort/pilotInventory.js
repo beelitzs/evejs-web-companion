@@ -85,8 +85,19 @@ const dictOf = (value) => new Map(value && Array.isArray(value.entries) ? value.
  * `rowFields(row)` reads an inventory row's fields by name. `session()` answers the pilot's session as the client
  * reads it: { stationid, charid, corpid, shipid, corprole (a BigInt) }.
  */
-function createPilotInventory({ rowFields, session, createItemHeader = null }) {
+function createPilotInventory({ rowFields, session, createItemHeader = null, askItemDescriptor = null }) {
   let itemHeader = null, preparingItemHeader = null;
+  // Without the native header (the JS path), invCache.GetItemHeader's one remote demand all the same:
+  // invbroker.GetItemDescriptor, made where a container's listing first needs the header, as the native storage's
+  // begin() makes it (clientInventoryContainerStorage.js 58) and as Tranquility does, once, after the ship's first
+  // listing ("Logging in then renaming ship", 1776 to 1777). The JS path reads each answer by its own header, so this
+  // one is only held, that it is asked once; a failed ask is no header, and the next listing asks again.
+  let itemDescriptor = null;
+  const descriptorAsked = () => {
+    if (typeof askItemDescriptor !== "function") return null;
+    itemDescriptor ??= Promise.resolve().then(askItemDescriptor).catch((error) => { itemDescriptor = null; throw error; });
+    return itemDescriptor;
+  };
   function prepareItemHeader() {
     if (itemHeader !== null) return Promise.resolve(itemHeader);
     if (preparingItemHeader !== null) return preparingItemHeader;
@@ -347,6 +358,7 @@ function createPilotInventory({ rowFields, session, createItemHeader = null }) {
           storage?.logListed();
         }
         if (storage) return storage.finish(await storage.begin(), nativeFlag, false, wire ? wire.typeID : typeID);
+        await descriptorAsked();
         return answerOf(container, (fields) => (flag === null || fields.flagID === flag) && (typeID === undefined || fields.typeID === typeID));
       });
     },
@@ -358,7 +370,7 @@ function createPilotInventory({ rowFields, session, createItemHeader = null }) {
       const container = containers.get(key);
       if (!container) return ask(flags);
       return inTurn(container, async () => {
-        const storage = container.storage, result = storage ? await storage.begin() : null;
+        const storage = container.storage, result = storage ? await storage.begin() : await descriptorAsked();
         const nativeFlags = wire?.flags ?? flags;
         if (flags.length === 0) return storage ? storage.finish(result, nativeFlags, true, wire ? wire.typeID : typeID) : { type: "list", items: [] };
         const unlisted = flags.filter((flag, i) => !container.listed.has(storage ? nativeFlags[i] : flag));

@@ -2005,6 +2005,9 @@ function createGamePortPilots({
           staticService: await entry.dogma.initializeNativeClientStaticConstructor(),
           getItemDescriptor: () => run(entry, "invbroker", "GetItemDescriptor", () => session.call("invbroker", "GetItemDescriptor", [])),
         }) : null,
+        // The JS path's own asking of it, where there is no native header to ask (pilotInventory.js descriptorAsked).
+        askItemDescriptor: typeof createNativeClientInventoryHeader === "function" ? null
+          : () => run(entry, "invbroker", "GetItemDescriptor", () => session.call("invbroker", "GetItemDescriptor", [])),
       }),
       /** marketQuote.GetAveragePrice for the items of the sale being made, by type (saleAveragesRead). */
       saleAverages: new Map(),
