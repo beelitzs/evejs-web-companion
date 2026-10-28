@@ -24,6 +24,8 @@
   import { PANE_WORD_LABELS, objectivePane, paneMessageIDs, paneNameRefs, type PaneBlock, type PaneMark } from "../bridge/missionObjectivePane.ts";
   import type { MissionMessage } from "../bridge/missionObjectives.ts";
   import { formatTemplate, plainText } from "../bridge/clientWords.ts";
+  import { formatWholeIsk } from "./isk.ts";
+  import { pyStandingText } from "./standingsList.ts";
   import { questionMarkup, questionText, wordsLabels, wordsNameRefs, type ClientWording } from "../bridge/questions.ts";
   import { sessionPlace } from "../bridge/sessionPlace.ts";
   import { objectiveSystemIDs } from "../bridge/locationWrapper.ts";
@@ -78,6 +80,8 @@
     };
   });
   const saysName = (kind: NameRef["kind"], id: number): string => resolvedName($names.resolved, kind, id, `${kind} ${id}`);
+  /** A balance of loyalty points (a bigint-safe decimal string) with its thousands grouped; anything else as it came. */
+  const groupedPoints = (points: string): string => (/^-?\d+$/.test(points) ? BigInt(points).toLocaleString("en-US") : points);
   // What the agent says, its markup read as the client's dialogue window reads it: a line break as one, the rest of its
   // tags (bold and the like) as plain words. A text the server sent as it is came through with its tags showing
   // ("<b>Tidings of Conflict (1 of 2)</b><br><br>Your courier assignment…").
@@ -948,7 +952,9 @@
     {/if}
     <table class="guests">
       <tbody>
-        <tr><th>Wallet balance (ISK)</th><td class="num">{$rewards.cashBalance ?? "—"}</td></tr>
+        <!-- The balance as the Wallet window writes it, a standing as the client's standings write one, and loyalty
+             points grouped: they came out as the server's raw numbers ("1939913011.6", "1.5538180000000001"). -->
+        <tr><th>Wallet balance (ISK)</th><td class="num">{formatWholeIsk($rewards.cashBalance, "truncate")}</td></tr>
       </tbody>
     </table>
     <h3 class="note">Loyalty points ({$rewards.lpBalances.length})</h3>
@@ -957,7 +963,7 @@
     {:else}
       <ul class="journal">
         {#each $rewards.lpBalances as lp (lp.issuerCorpID)}
-          <li>{resolvedName($names.resolved, "corporation", lp.issuerCorpID, "—")} · {lp.loyaltyPoints} LP</li>
+          <li>{resolvedName($names.resolved, "corporation", lp.issuerCorpID, "—")} · {groupedPoints(lp.loyaltyPoints)} LP</li>
         {/each}
       </ul>
     {/if}
@@ -967,7 +973,7 @@
     {:else}
       <ul class="journal">
         {#each $rewards.standings as standing (standing.fromID)}
-          <li>toward {resolvedName($names.resolved, "owner", standing.fromID, "—")} · {standing.standing}</li>
+          <li>toward {resolvedName($names.resolved, "owner", standing.fromID, "—")} · {pyStandingText(standing.standing)}</li>
         {/each}
       </ul>
     {/if}
