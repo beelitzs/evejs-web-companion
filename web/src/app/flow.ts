@@ -5110,7 +5110,15 @@ export function createAppFlow(store: ClientStore, options: AppFlowOptions = {}):
   // Not while this page is releasing the pilot itself (logout, beginSessionClose): the BFF ends the stream as part of
   // the release, saying "ended" twice, and each read went out against the session being released and came back 404
   // SESSION_NOT_FOUND, then 409 NO_LIVE_SESSION.
+  //
+  // A read that could not be answered (EveJS going down for a restart: 502 EVE_GATEWAY_UNREACHABLE) says nothing
+  // either way, so it is made again a little later, for as long as the stream stays ended. Asked once only, a page
+  // whose server restarted kept saying Docked over a session that no longer was, every later read refused.
+  const STILL_ONLINE_RETRY_MS = 5_000;
+  let stillOnlineRetry: ReturnType<typeof setTimeout> | null = null;
   async function confirmStillOnline(): Promise<void> {
+    if (stillOnlineRetry !== null) clearTimeout(stillOnlineRetry);
+    stillOnlineRetry = null;
     if (sessionClosing || store.station.get().online === null) return;
     try {
       await api.getFlightStatus(callOptions);
@@ -5121,6 +5129,11 @@ export function createAppFlow(store: ClientStore, options: AppFlowOptions = {}):
         corporationRecords.reset();
         corporationAggression.reset();
         store.apply({ type: "character/offline" });
+        return;
+      }
+      if (store.live.get().status === "ended") {
+        stillOnlineRetry = setTimeout(() => void confirmStillOnline(), STILL_ONLINE_RETRY_MS);
+        if (typeof stillOnlineRetry === "object" && "unref" in stillOnlineRetry) stillOnlineRetry.unref();
       }
     }
   }
