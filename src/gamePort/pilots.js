@@ -5863,7 +5863,18 @@ function createGamePortPilots({
       return entry.space.remote();
     }
     if (service === "invbroker" && method === "GetInventory") {
-      const policy = await entry.dogma.captureInventorySessionCheck(attribute(entry, "structureid") !== null ? ["locationid"] : ["stationid"]);
+      // A hangar is asked for only where the pilot is docked, and the asking is checked before anything is captured
+      // or sent. In space a hangar asked with no place matched the pilot's null station, so the station's manager
+      // was asked for its hangar from space and the bind captured the session check {stationid: None}, which the
+      // client's PerformSessionCheck refuses on every call (objectcallgpcs.py 534 to 545: `not expected`), logging
+      // a traceback at each: the inventory read's hangar half after every undock. The client never asks a station's
+      // hangar in space (invCache.GetInventory binds it with {'stationid': self.__stationID}, invCache.py 505 to 528).
+      const asked = positive(args[0]);
+      const structureID = attribute(entry, "structureid");
+      if (asked === null || asked !== (structureID ?? attribute(entry, "stationid"))) {
+        throw fail("CALL_REFUSED", "The pilot is not docked there.");
+      }
+      const policy = await entry.dogma.captureInventorySessionCheck(structureID !== null ? ["locationid"] : ["stationid"]);
       // invCache.GetInventory(const.containerHangar): the station's hangar from the station's manager.
       //
       // Docked in a structure the hangars are the structure's own inventory (invControllers.StructureItemHangar and
@@ -5872,11 +5883,6 @@ function createGamePortPilots({
       // the manager for where the pilot is. Every recording of a client docked in a structure has that one bind
       // and no other for its hangars. (invCache.GetInventory(containerStructure) is the hangar view's, for the
       // structure's type: hangarView.py 629. The page has no such view, and it is not asked.)
-      const asked = positive(args[0]);
-      const structureID = attribute(entry, "structureid");
-      if (asked !== (structureID ?? attribute(entry, "stationid"))) {
-        throw fail("CALL_REFUSED", "The pilot is not docked there.");
-      }
       if (structureID !== null) {
         const key = policy?.key("structure");
         return checkedInventoryReceipt(entry, await inventoryCall(entry, "location", "GetInventoryFromId", [structureID, 1]), policy, key);
