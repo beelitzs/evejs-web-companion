@@ -31406,6 +31406,12 @@ export function createAppFlow(store: ClientStore, options: AppFlowOptions = {}):
     },
 
     async setAutopilotToDropoff(dropoffStationID) {
+      // The drop-off is made the destination first, as its place's Set Destination makes it (setWaypointAs, the star
+      // map's SetWaypoint with the others cleared), so the route panel says where the run goes; arriving takes it off
+      // again (waypointsArrived). Run without it, the panel said "No Destination" over the route being flown.
+      await setWaypointAs(dropoffStationID, true);
+      // An autopilot already on in space took the new destination itself (autopilotRouteChanged): no second run.
+      if (autopilotSignal.get() && autopilotTarget === dropoffStationID) return;
       // Reuse the R5b route solver + browser autopilot: startRoute resolves the
       // dropoff station -> its solar system and runs the decide-loop.
       await startRoute(dropoffStationID);
