@@ -30,7 +30,7 @@ import type { AppFlow } from "../app/flow.ts";
  */
 export type BuilderFlow = Pick<
   AppFlow,
-  "listSavedFittings" | "listBookmarks" | "listOreFamilies" | "searchDestinations" | "loadCorpOffices"
+  "listSavedFittings" | "listBookmarks" | "listBookmarkFolders" | "listOreFamilies" | "searchDestinations" | "loadCorpOffices"
 > & {
   requestOptions(): ApiOptions | Promise<ApiOptions>;
 };
@@ -65,9 +65,11 @@ export const NO_PILOT_FOR_CORP_OFFICES = "No pilot is in the client to read a co
 export function createPilotlessBuilderFlow(accountOptions: () => Promise<ApiOptions>): BuilderFlow {
   return {
     requestOptions: accountOptions,
-    // Both belong to a character, and an account sign-in has none selected.
+    // They belong to a character, and an account sign-in has none selected. Without the folders the Builder's
+    // load threw "listBookmarkFolders is not a function", and a Builder opened with no pilot stopped working.
     listSavedFittings: async () => [],
     listBookmarks: async () => [],
+    listBookmarkFolders: async () => [],
     listOreFamilies: async () => api.listOreFamilies(await accountOptions()),
     async searchDestinations(query, kind = null) {
       const trimmed = query.trim();
