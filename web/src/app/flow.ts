@@ -9362,7 +9362,7 @@ export function createAppFlow(store: ClientStore, options: AppFlowOptions = {}):
   // marketProxy.GetCharEscrow) only where none is kept, or its last asking is twelve hours old and
   // OnMarketEscrowChanged has said it changed (should_update_calculation); as a watcher begins, and every twelve hours
   // while one watches (register_subscriber, _get_calculation_timed). The client's watcher is the character sheet's
-  // total net worth; the page's is its market window, which shows the escrow.
+  // total net worth; the page's is its market window, which shows its open orders' totals rather than this value.
   const MARKET_PROGRESSION_KEPT = "evejs.market";
   const MARKET_UPDATE_NOT_RECENT_AFTER_MS = 12 * 60 * 60 * 1000;
   function marketProgressionKept(name: "value" | "last_update" | "requires_update"): unknown {

@@ -30,6 +30,7 @@
     historyDayText,
     filterByJumps,
     formatIsk,
+    iskDelta,
     rangeLabel,
     sortOrderBook,
   } from "../bridge/market.ts";
@@ -472,6 +473,23 @@
   const openOrders = $derived.by(() =>
     $market.ownOrders.filter((order) => order.state === "open"),
   );
+  /**
+   * What the pilot's own open orders have tied up, totalled from the orders as the client's orders panel totals them
+   * (personalMarketOrders.py UpdateOrderTotals, 32 to 49: each open buy order's escrow), and the goods each open sell
+   * order still holds, as the server's GetCharEscrow counts them (units). Not the market progression's kept value:
+   * that is asked again at most every twelve hours, so straight after an order it disagreed with the orders listed.
+   * The ISK goes through iskDelta's exact hundredths (adding is taking away the escrow's negative).
+   */
+  const tiedUp = $derived.by(() => {
+    let isk = "0.00";
+    let items = 0;
+    for (const order of openOrders) {
+      if (order.isCorp) continue;
+      if (order.side === "buy") isk = iskDelta(isk, `-${order.escrow}`) ?? isk;
+      else items += order.volumeRemaining;
+    }
+    return { isk, items };
+  });
 
   /**
    * The stacks of the chosen item the player is actually holding at this
@@ -728,7 +746,8 @@
     // market load: it is a different panel's read, and failing it must cost the
     // player only the ability to sell, not the whole market page.
     void flow.loadInventory().catch(() => {});
-    // The escrow the window shows, as the client's market progression keeps it (asked at most each twelve hours).
+    // The pilot's escrow kept as the client's market progression keeps it (asked at most each twelve hours), watched
+    // while the window is open. The figures the window shows are its open orders' (tiedUp).
     return flow.watchMarketProgression();
   });
 </script>
@@ -943,8 +962,8 @@
   {:else}
     <p class="note">
       Your ISK: <strong>{formatIsk($market.cashBalance)}</strong>.
-      {#if $market.escrow}
-        {formatIsk($market.escrow.isk)} of it is tied up in buy orders.
+      {#if !$market.ownOrdersError}
+        {formatIsk(tiedUp.isk)} of it is tied up in buy orders.
       {/if}
     </p>
   {/if}
@@ -1480,7 +1499,7 @@
 {#if $market.loaded && tab === "escrow"}
   <section>
     <h2>What your orders have tied up</h2>
-    {#if $market.escrow === null}
+    {#if $market.ownOrdersError}
       <p class="note">This could not be read right now.</p>
     {:else}
       <div class="table-wrap overflow-x-auto">
@@ -1489,13 +1508,13 @@
             <tr>
               <th>ISK held for your buy orders</th>
               <td class="num" data-label="ISK held for your buy orders">
-                {formatIsk($market.escrow.isk)}
+                {formatIsk(tiedUp.isk)}
               </td>
             </tr>
             <tr>
               <th>Goods held for your sell orders</th>
               <td class="num" data-label="Goods held for your sell orders">
-                {$market.escrow.items}
+                {tiedUp.items}
               </td>
             </tr>
             <tr>
