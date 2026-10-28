@@ -5106,8 +5106,12 @@ export function createAppFlow(store: ClientStore, options: AppFlowOptions = {}):
   // it). The retail client puts up its connection-lost notice the moment its connection closes (disconnectNotice.py),
   // so one read finds out at once whether the pilot is still on, and a pilot that is not goes offline, as any read
   // that finds it gone does. A pilot docked and idle makes no read of its own to find it out by.
+  //
+  // Not while this page is releasing the pilot itself (logout, beginSessionClose): the BFF ends the stream as part of
+  // the release, saying "ended" twice, and each read went out against the session being released and came back 404
+  // SESSION_NOT_FOUND, then 409 NO_LIVE_SESSION.
   async function confirmStillOnline(): Promise<void> {
-    if (store.station.get().online === null) return;
+    if (sessionClosing || store.station.get().online === null) return;
     try {
       await api.getFlightStatus(callOptions);
     } catch (error) {
