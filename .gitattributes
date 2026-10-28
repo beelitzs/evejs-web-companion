@@ -1,0 +1,2 @@
+# The native client layer's shipped add-ons (scripts/native-prebuilt): compiled binaries, never text.
+*.node binary

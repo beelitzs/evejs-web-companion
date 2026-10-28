@@ -6,13 +6,25 @@ const execute = promisify(execFile), builds = new Map();
 const sources = ["python_runtime.c", "row_storage.h", "row_indexer.h", "atomic_files.c", "atomic_files.h", "log_backend.c", "log_backend.h", "tasklet_timer.c", "tasklet_timer.h"];
 const DEFAULT_CACHE = path.join(__dirname, "..", "data", "native-preferences", "bindings");
 const hash = bytes => crypto.createHash("sha256").update(bytes).digest("hex");
+const { asCommitted, publishShipped, shippedBinary } = require("./native-prebuilt-binaries");
+const BINDING = "client_preferences.node";
 const capture = () => sources.map(name => [name, fs.readFileSync(path.join(__dirname, "native-prefs", name))]);
-const digestOf = captured => hash(Buffer.concat(captured.flatMap(([name, bytes]) => [Buffer.from(name + "\0"), bytes, Buffer.from("\0")]).concat(Buffer.from(`napi8-${process.arch}`))));
+// Over the sources as git keeps them, so a CRLF checkout finds the binary the project ships (native-prebuilt-binaries.js).
+const digestOf = captured => hash(Buffer.concat(captured.flatMap(([name, bytes]) => [Buffer.from(name + "\0"), asCommitted(bytes), Buffer.from("\0")]).concat(Buffer.from(`napi8-${process.arch}`))));
+/** The digest of the sources as they are now: what a cached or shipped binding is found by. */
+function nativePreferencesDigest() {
+  return digestOf(capture());
+}
 /** Where the binding of the sources as they are now is kept, built or not: nativeClientReadiness asks before any build. */
 function nativePreferencesTarget({ cacheRoot = DEFAULT_CACHE } = {}) {
-  return path.join(path.resolve(cacheRoot, digestOf(capture())), "client_preferences.node");
+  return path.join(path.resolve(cacheRoot, nativePreferencesDigest()), BINDING);
 }
-async function buildNativePreferences({ cacheRoot = DEFAULT_CACHE } = {}) {
+/** The binding the project ships for the sources as they are now, or null where it ships none for them. */
+function nativePreferencesShipped() {
+  return shippedBinary(BINDING, nativePreferencesDigest());
+}
+// `prebuilt: false` compiles even where the project ships the binding (build-native-prebuilt.js, which makes it).
+async function buildNativePreferences({ cacheRoot = DEFAULT_CACHE, prebuilt = true } = {}) {
   if (process.platform !== "win32" || process.arch !== "x64") throw new Error("Native client preferences require Windows x64.");
   // Capture every compilation input before the first await. Build and hash
   // that snapshot; another session changing a source cannot change its identity.
@@ -22,6 +34,12 @@ async function buildNativePreferences({ cacheRoot = DEFAULT_CACHE } = {}) {
   const identity = () => ({ target, sources: captured.map(([name, bytes]) => ({ name, sha256: hash(bytes) })), bindingSHA256: hash(fs.readFileSync(target)), napi: 8 });
   const license = fs.readFileSync(path.join(__dirname, "..", "src", "gamePort", "clientPreferences-LICENSE.txt"));
   if (fs.existsSync(target)) { fs.writeFileSync(path.join(directory, "LICENSE.txt"), license); return identity(); }
+  const shipped = prebuilt ? shippedBinary(BINDING, digest) : null;
+  if (shipped) {
+    publishShipped(shipped, target);
+    fs.writeFileSync(path.join(directory, "LICENSE.txt"), license);
+    return identity();
+  }
   if (builds.has(target)) return builds.get(target);
   const work = (async () => {
     const cache = path.join(os.homedir(), "AppData", "Local", "node-gyp", "Cache", process.versions.node);
@@ -54,5 +72,5 @@ async function buildNativePreferences({ cacheRoot = DEFAULT_CACHE } = {}) {
   builds.set(target, work);
   try { return await work; } finally { if (builds.get(target) === work) builds.delete(target); }
 }
-module.exports = { buildNativePreferences, nativePreferencesTarget };
+module.exports = { BINDING, buildNativePreferences, nativePreferencesDigest, nativePreferencesShipped, nativePreferencesTarget };
 if (require.main === module) buildNativePreferences().then(result => console.log(JSON.stringify(result)), error => { console.error(error.message); process.exitCode = 1; });

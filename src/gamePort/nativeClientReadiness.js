@@ -15,9 +15,11 @@
 //   - the install's tq/bin64/python27.dll and tq/code.ccp;
 //   - a Python 3 at EVEJS_PYTHON, which takes the client's modules out of
 //     code.ccp on every start (scripts/client-preferences-modules.py);
-//   - each add-on already built for its sources as they are now, or what its
-//     build needs: Node's headers and node.lib in node-gyp's cache for this
-//     Node, and Visual Studio's x64 C++ tools (VsDevCmd.bat, found by vswhere).
+//   - each add-on already built for its sources as they are now, either in the
+//     BFF's cache or shipped with the project (scripts/native-prebuilt,
+//     native-prebuilt-binaries.js), or what its build needs: Node's headers and
+//     node.lib in node-gyp's cache for this Node, and Visual Studio's x64 C++
+//     tools (VsDevCmd.bat, found by vswhere).
 //
 // This finds what is there; it builds nothing and catches no failure of the
 // layer itself. A layer this says can run and that then fails still fails.
@@ -26,8 +28,8 @@ const childProcess = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { nativePreferencesTarget } = require("../../scripts/build-native-preferences");
-const { nativeClockTarget } = require("../../scripts/build-native-clock");
+const { nativePreferencesShipped, nativePreferencesTarget } = require("../../scripts/build-native-preferences");
+const { nativeClockShipped, nativeClockTarget } = require("../../scripts/build-native-clock");
 
 /** What the add-on builds need, as they look for it; null where it is all there, else what is missing. */
 function toolchainMissing({ exists, run }) {
@@ -57,6 +59,8 @@ function nativeClientReadiness({
   preferencesCache,
   exists = fs.existsSync,
   run = (file, args) => childProcess.execFileSync(file, args, { windowsHide: true, timeout: 20_000, stdio: ["ignore", "pipe", "ignore"] }),
+  // Whether the project ships an add-on for its sources as they are now (each build's own *Shipped()).
+  shipped = (find) => find() !== null,
 } = {}) {
   const missing = [];
   if (process.platform !== "win32" || process.arch !== "x64") {
@@ -72,8 +76,8 @@ function nativeClientReadiness({
     missing.push(`a Python 3 at EVEJS_PYTHON=${python}`);
   }
   const unbuilt = [];
-  if (!exists(nativePreferencesTarget({ cacheRoot: preferencesCache }))) unbuilt.push("the preference add-on");
-  if (!exists(nativeClockTarget())) unbuilt.push("the clock add-on");
+  if (!exists(nativePreferencesTarget({ cacheRoot: preferencesCache })) && !shipped(nativePreferencesShipped)) unbuilt.push("the preference add-on");
+  if (!exists(nativeClockTarget()) && !shipped(nativeClockShipped)) unbuilt.push("the clock add-on");
   if (unbuilt.length > 0) {
     const toolchain = toolchainMissing({ exists, run });
     if (toolchain !== null) missing.push(`${unbuilt.join(" and ")} built, or what builds ${unbuilt.length > 1 ? "them" : "it"}: ${toolchain}`);

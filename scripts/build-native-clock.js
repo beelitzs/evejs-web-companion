@@ -7,12 +7,24 @@ const { execFile } = require("node:child_process"), { promisify } = require("nod
 const execute = promisify(execFile), builds = new Map();
 const source = path.join(__dirname, "native-clock", "windows_clock.c");
 const DEFAULT_CACHE = path.join(__dirname, "..", "data", "native-clock");
-const digestOf = sourceBytes => crypto.createHash("sha256").update(sourceBytes).update(`napi8-${process.arch}`).digest("hex");
+const { asCommitted, publishShipped, shippedBinary } = require("./native-prebuilt-binaries");
+const BINDING = "windows_clock.node";
+// Over the source as git keeps it, so a CRLF checkout finds the binary the project ships (native-prebuilt-binaries.js).
+const digestOf = sourceBytes => crypto.createHash("sha256").update(asCommitted(sourceBytes)).update(`napi8-${process.arch}`).digest("hex");
+/** The digest of the source as it is now: what a cached or shipped binding is found by. */
+function nativeClockDigest() {
+  return digestOf(fs.readFileSync(source));
+}
 /** Where the binding of the source as it is now is kept, built or not: nativeClientReadiness asks before any build. */
 function nativeClockTarget({ cacheRoot = DEFAULT_CACHE } = {}) {
-  return path.join(path.resolve(cacheRoot, digestOf(fs.readFileSync(source))), "windows_clock.node");
+  return path.join(path.resolve(cacheRoot, nativeClockDigest()), BINDING);
 }
-async function buildNativeClock({ cacheRoot = DEFAULT_CACHE } = {}) {
+/** The binding the project ships for the source as it is now, or null where it ships none for it. */
+function nativeClockShipped() {
+  return shippedBinary(BINDING, nativeClockDigest());
+}
+// `prebuilt: false` compiles even where the project ships the binding (build-native-prebuilt.js, which makes it).
+async function buildNativeClock({ cacheRoot = DEFAULT_CACHE, prebuilt = true } = {}) {
   if (process.platform !== "win32" || process.arch !== "x64") throw new Error("Native client clock requires Windows x64.");
   const sourceBytes = fs.readFileSync(source), sourceSHA256 = crypto.createHash("sha256").update(sourceBytes).digest("hex");
   const digest = digestOf(sourceBytes);
@@ -20,6 +32,12 @@ async function buildNativeClock({ cacheRoot = DEFAULT_CACHE } = {}) {
   const identity = () => ({ target, sourceSHA256, bindingSHA256: crypto.createHash("sha256").update(fs.readFileSync(target)).digest("hex"), napi: 8 });
   const license = path.join(__dirname, "..", "src", "gamePort", "clientClock-LICENSE.txt");
   if (fs.existsSync(target)) { fs.copyFileSync(license, path.join(directory, "LICENSE.txt")); return identity(); }
+  const shipped = prebuilt ? shippedBinary(BINDING, digest) : null;
+  if (shipped) {
+    publishShipped(shipped, target);
+    fs.copyFileSync(license, path.join(directory, "LICENSE.txt"));
+    return identity();
+  }
   if (builds.has(target)) return builds.get(target);
   const work = (async () => {
     const cache = path.join(os.homedir(), "AppData", "Local", "node-gyp", "Cache", process.versions.node);
@@ -62,5 +80,5 @@ async function buildNativeClock({ cacheRoot = DEFAULT_CACHE } = {}) {
   builds.set(target, work);
   try { return await work; } finally { if (builds.get(target) === work) builds.delete(target); }
 }
-module.exports = { buildNativeClock, nativeClockTarget };
+module.exports = { BINDING, buildNativeClock, nativeClockDigest, nativeClockShipped, nativeClockTarget };
 if (require.main === module) buildNativeClock().then(result => console.log(JSON.stringify(result)), error => { console.error(error.message); process.exitCode = 1; });

@@ -1,0 +1,14 @@
+{
+  "client_preferences.node": {
+    "digest": "227cba0ce38dee08a305304fdb2f01f8f9088ea0ac95e704c45b64e05ee809d1",
+    "sha256": "695e914d19eb095cce55962f4d386841dc73ebeb590f5a856300d108f34021e3",
+    "napi": 8,
+    "builtWithNode": "24.16.0"
+  },
+  "windows_clock.node": {
+    "digest": "ac6cce2cfdf88aa4d1dd694f62b6aafcd91099f16832dce669bebd75d6c7445e",
+    "sha256": "b35c90f7b5d7bea7cac48ca2765748b76882a907556fc9f604c1fb22e349d3bd",
+    "napi": 8,
+    "builtWithNode": "24.16.0"
+  }
+}
