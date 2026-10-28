@@ -271,13 +271,16 @@ export function formatIskCompact(value: number | null): string {
   return `${sign}${Math.round(abs).toLocaleString("en-US")}`;
 }
 
-/** A compact skill-point total: "134.9m SP", "412k SP". */
+/** A compact skill-point total: "134.9m SP", "412k SP", and one under a thousand whole: "500 SP". */
 export function formatSpCompact(value: number | null): string {
   if (value === null || !Number.isFinite(value)) {
     return "— SP";
   }
-  if (value >= 1e6) return `${(value / 1e6).toFixed(1)}m SP`;
-  return `${Math.round(value / 1e3)}k SP`;
+  // Rounded to thousands, 500 SP read "1k SP" and anything under 500 "0k SP"; from 999,500 it read "1000k SP".
+  const thousands = Math.round(value / 1e3);
+  if (value >= 1e6 || thousands >= 1000) return `${(value / 1e6).toFixed(1)}m SP`;
+  if (value < 1e3) return `${Math.round(value)} SP`;
+  return `${thousands}k SP`;
 }
 
 /** What the scope chip currently in force is showing, in words. */
