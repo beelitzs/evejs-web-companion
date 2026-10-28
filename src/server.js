@@ -15,6 +15,7 @@ const { createClientTextures } = require("./clientData/clientTextures");
 const { createMultibuyImport } = require("./clientData/importMultibuy");
 const { createSkillplanImport } = require("./clientData/importSkillplan");
 const { createClientBuiltData } = require("./clientData/clientBuiltData");
+const { createSdeBuiltData } = require("./clientData/sdeBuiltData");
 const { hullBrowserData } = require("./clientData/hullBrowser");
 const { readFitting } = require("./clientData/importFitting");
 const { createClientConstants } = require("./clientData/clientConstants");
@@ -405,6 +406,10 @@ const clientBuiltData = options.clientBuiltData || createClientBuiltData({
   python: config.clientPython,
   onError: (error) => console.warn(`[client-data] a table of the client's built data could not be read: ${error && error.message}`),
 });
+// Where there is no install, the tables the dogma-types route reads, from CCP's SDE of the same build
+// (src/clientData/sdeBuiltData.js; docs/native-layer-optional-plan.md, phase 2). With one, the client's own are read.
+const sdeBuiltData = options.sdeBuiltData || createSdeBuiltData({ jsonl: staticDataModule.buildJsonlIndex });
+const dogmaBuiltData = () => (typeof clientBuiltData.available === "function" && !clientBuiltData.available() ? sdeBuiltData : clientBuiltData);
 // The retail client's own constants, read by running its code from the same
 // install (src/clientData/clientConstants.js).
 const clientConstants = options.clientConstants || createClientConstants({
@@ -13553,6 +13558,16 @@ const MIN_PLAYER_OWNER_ID = 90000000;
 /** const.ownerSystem, and the client's own word for it (eveCfg.py 24, 583, 1186). */
 const OWNER_SYSTEM_ID = 1;
 const OWNER_SYSTEM_NAME_LABEL = "UI/Chat/ChatEngine/EveSystem";
+/**
+ * Owner 1's name: the client's word, or null where the install has none. With no install, the word's English text as
+ * the install has it (checked 2026-10-28), as the page's own words stand in for the client's
+ * (docs/native-layer-optional-plan.md, phase 2).
+ */
+function ownerSystemName() {
+  if (typeof clientWords.available === "function" && !clientWords.available()) return "EVE System";
+  const word = clientWords.templates([OWNER_SYSTEM_NAME_LABEL])[OWNER_SYSTEM_NAME_LABEL];
+  return typeof word === "string" ? word : null;
+}
 const OWNER_TYPE = Object.freeze({ corporation: 2, alliance: 16159, faction: 30 });
 const OWNER_NAME_KINDS = Object.freeze({
   corporation: (typeID) => typeID === OWNER_TYPE.corporation,
@@ -14042,10 +14057,14 @@ app.get("/api/client-data/race-name-ids", requireAuth, async (req, res, next) =>
   } catch (error) { next(error); }
 });
 
-// Native chat role gates and cfg owner classification, from the installed modules.
+// Native chat role gates and cfg owner classification, from the installed modules. With no install, the same four as
+// the client's code has them (carbon/common/script/sys/serviceConst.py ROLE_CHTADMINISTRATOR, ROLE_GML and
+// ROLE_LEGIONEER; inventorycommon/const.py groupCharacter), which the install answers alike (checked 2026-10-28) and
+// EveJS's account roles agree with (server/src/services/account/accountRoleProfiles.js).
+const CHAT_RULES_WITHOUT_INSTALL = Object.freeze({ ROLE_CHTADMINISTRATOR: "2097152", ROLE_GML: "18014398509481984", ROLE_LEGIONEER: "262144", groupCharacter: 1 });
 app.get("/api/client-data/chat-rules", requireAuth, async (req, res, next) => {
   try {
-    const rules = await clientConstants.chatRules();
+    const rules = typeof clientConstants.available === "function" && !clientConstants.available() ? CHAT_RULES_WITHOUT_INSTALL : await clientConstants.chatRules();
     res.json({ ok: true, available: rules !== null, rules });
   } catch (error) { next(error); }
 });
@@ -14370,15 +14389,18 @@ app.get("/api/client-data/dogma-types", requireAuth, async (req, res, next) => {
     };
     const wanted = listed("typeIDs", 50);
     const askedAttributes = listed("attributeIDs", 200);
+    // The client's tables, or with no install the SDE's (dogmaBuiltData): the Show Info windows choose their kind by
+    // a type's category from here, and fail without it.
+    const built = dogmaBuiltData();
     const [dogmaRows, typeRows, attributeRows, groupCategories, requiredSkills, materialRows, basePrices, portionSizes] = await Promise.all([
-      clientBuiltData.rows("typeDogma", wanted),
-      clientBuiltData.rows("types", wanted),
-      clientBuiltData.table("dogmaAttributes"),
-      clientBuiltData.table("groupCategories"),
-      clientBuiltData.table("requiredSkillsForTypes"),
-      clientBuiltData.rows("typeMaterials", wanted),
-      clientBuiltData.table("typeBasePrices"),
-      clientBuiltData.table("typePortionSizes"),
+      built.rows("typeDogma", wanted),
+      built.rows("types", wanted),
+      built.table("dogmaAttributes"),
+      built.table("groupCategories"),
+      built.table("requiredSkillsForTypes"),
+      built.rows("typeMaterials", wanted),
+      built.table("typeBasePrices"),
+      built.table("typePortionSizes"),
     ]);
     if (!dogmaRows || !typeRows || !attributeRows) {
       res.json({ ok: true, available: false, types: {}, effects: {}, attributes: {} });
@@ -14473,7 +14495,7 @@ app.get("/api/client-data/dogma-types", requireAuth, async (req, res, next) => {
         computedBasePrice: computedBasePrice(typeID, 1),
       };
     }
-    const effectRows = effectIDs.length > 0 ? await clientBuiltData.rows("dogmaEffects", effectIDs) : {};
+    const effectRows = effectIDs.length > 0 ? await built.rows("dogmaEffects", effectIDs) : {};
     const effects = {};
     for (const effectID of effectIDs) {
       const row = effectRows ? effectRows[String(effectID)] : null;
@@ -14846,7 +14868,7 @@ app.post("/api/names", requireAuth, async (req, res, next) => {
       const seeded = staticData.resolveNames({ items: wanted.filter(id => id > 1 && id < MIN_PLAYER_OWNER_ID).flatMap(id => [{ kind: "owner", id }, { kind: "ownerType", id }]) }).names;
       for (const id of wanted) {
         if (id === OWNER_SYSTEM_ID) {
-          const name = clientWords.templates([OWNER_SYSTEM_NAME_LABEL])[OWNER_SYSTEM_NAME_LABEL];
+          const name = ownerSystemName();
           if (typeof name !== "string") throw Object.assign(new Error("The client's EVE System name is unavailable."), { code: "CLIENT_DATA_UNAVAILABLE", statusCode: 503 });
           owners[id] = { name, typeID: 0 };
         } else if (seeded[`ownerType:${id}`] != null) {
@@ -14878,11 +14900,11 @@ app.post("/api/names", requireAuth, async (req, res, next) => {
 
     // Owner 1, the EVE System: the client names it itself in its table of owners, by its own word, whoever asks for
     // it, and asks no one (eveCfg.py LoadEveOwners, 583: OWNER_NAME_OVERRIDES, UI/Chat/ChatEngine/EveSystem). So
-    // here, from the install, where the static tables have it not and there is an install to read.
+    // here, from the install (or its English with none: ownerSystemName), where the static tables have it not.
     for (const [key, value] of Object.entries(names)) {
       const separator = key.indexOf(":");
       if (value === null && Number(key.slice(separator + 1)) === OWNER_SYSTEM_ID && Object.hasOwn(OWNER_NAME_KINDS, key.slice(0, separator)) && !["ownerGroup", "ownerType"].includes(key.slice(0, separator))) {
-        const word = clientWords.templates([OWNER_SYSTEM_NAME_LABEL])[OWNER_SYSTEM_NAME_LABEL];
+        const word = ownerSystemName();
         if (typeof word === "string" && word !== "") names[key] = word;
       }
     }
