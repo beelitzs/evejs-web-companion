@@ -8,6 +8,7 @@
   import type { ActiveServerBot } from "../app/api.ts";
   // The bot phrases are shared with the Pilot Hangar's row — see bots/pilotRoster.ts.
   import { activeBotCommandWords, activeBotVitalsWords } from "../bots/pilotRoster.ts";
+  import { formatNumeric } from "../bridge/pyNumbers.ts";
 
   let {
     known,
@@ -62,7 +63,7 @@
               {/if}
             </span>
             <span class="detail">
-              {character.accountName}{#if character.shipName} · {character.shipName}{/if}{#if character.skillPoints != null} · {character.skillPoints} SP{/if}
+              {character.accountName}{#if character.shipName} · {character.shipName}{/if}{#if character.skillPoints != null} · {formatNumeric({ int: character.skillPoints }, { useGrouping: true })} SP{/if}
             </span>
             {#if online}
               <span class="detail known-state">Already in this window</span>
