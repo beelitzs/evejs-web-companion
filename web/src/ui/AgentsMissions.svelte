@@ -78,11 +78,14 @@
     };
   });
   const saysName = (kind: NameRef["kind"], id: number): string => resolvedName($names.resolved, kind, id, `${kind} ${id}`);
-  const saysText = $derived(
+  // What the agent says, its markup read as the client's dialogue window reads it: a line break as one, the rest of its
+  // tags (bold and the like) as plain words. A text the server sent as it is came through with its tags showing
+  // ("<b>Tidings of Conflict (1 of 2)</b><br><br>Your courier assignment…").
+  const saysText = $derived(plainText(
     $agents.conversation?.agentSaysWords
       ? questionText($agents.conversation.agentSaysWords, saysName, saysClient)
       : $agents.conversation?.agentSays ?? "",
-  );
+  ));
   $effect(() => {
     const agentID = $agents.activeAgentID;
     const contentID = $agents.conversation?.contentID ?? null;
