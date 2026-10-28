@@ -150,13 +150,21 @@
    * and in-space effects already applied. This is the only place in the client
    * where a module's real numbers exist; the static SDE values would be a
    * different (and wrong) claim.
+   *
+   * The snapshot keeps the ship and its fitted items in `ships`, each item's ID
+   * as the wire gave it (a number or a string), and a loaded charge beside its
+   * module under the same slot with a `sublocation`, so the module is the entry
+   * with this ID and no sublocation. (This read `dogma.items`, which the
+   * snapshot never had, so the section always said there was no reading.)
    */
   const moduleStats = $derived.by(() => {
     const current = $subject;
     if (current === null || current.kind !== "module") {
       return [];
     }
-    const entry = $fitting.dogma?.items?.find((item) => item.itemID === current.itemID);
+    const entry = $fitting.dogma?.ships.find(
+      (item) => Number(item.itemID) === current.itemID && item.sublocation == null,
+    );
     return moduleEffectiveStats(entry?.attributes);
   });
 
