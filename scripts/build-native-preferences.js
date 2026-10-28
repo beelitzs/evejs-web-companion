@@ -4,13 +4,20 @@ const fs = require("node:fs"), path = require("node:path"), os = require("node:o
 const { execFile } = require("node:child_process"), { promisify } = require("node:util");
 const execute = promisify(execFile), builds = new Map();
 const sources = ["python_runtime.c", "row_storage.h", "row_indexer.h", "atomic_files.c", "atomic_files.h", "log_backend.c", "log_backend.h", "tasklet_timer.c", "tasklet_timer.h"];
-async function buildNativePreferences({ cacheRoot = path.join(__dirname, "..", "data", "native-preferences", "bindings") } = {}) {
+const DEFAULT_CACHE = path.join(__dirname, "..", "data", "native-preferences", "bindings");
+const hash = bytes => crypto.createHash("sha256").update(bytes).digest("hex");
+const capture = () => sources.map(name => [name, fs.readFileSync(path.join(__dirname, "native-prefs", name))]);
+const digestOf = captured => hash(Buffer.concat(captured.flatMap(([name, bytes]) => [Buffer.from(name + "\0"), bytes, Buffer.from("\0")]).concat(Buffer.from(`napi8-${process.arch}`))));
+/** Where the binding of the sources as they are now is kept, built or not: nativeClientReadiness asks before any build. */
+function nativePreferencesTarget({ cacheRoot = DEFAULT_CACHE } = {}) {
+  return path.join(path.resolve(cacheRoot, digestOf(capture())), "client_preferences.node");
+}
+async function buildNativePreferences({ cacheRoot = DEFAULT_CACHE } = {}) {
   if (process.platform !== "win32" || process.arch !== "x64") throw new Error("Native client preferences require Windows x64.");
   // Capture every compilation input before the first await. Build and hash
   // that snapshot; another session changing a source cannot change its identity.
-  const captured = sources.map(name => [name, fs.readFileSync(path.join(__dirname, "native-prefs", name))]);
-  const hash = bytes => crypto.createHash("sha256").update(bytes).digest("hex");
-  const digest = hash(Buffer.concat(captured.flatMap(([name, bytes]) => [Buffer.from(name + "\0"), bytes, Buffer.from("\0")]).concat(Buffer.from(`napi8-${process.arch}`))));
+  const captured = capture();
+  const digest = digestOf(captured);
   const directory = path.resolve(cacheRoot, digest), target = path.join(directory, "client_preferences.node");
   const identity = () => ({ target, sources: captured.map(([name, bytes]) => ({ name, sha256: hash(bytes) })), bindingSHA256: hash(fs.readFileSync(target)), napi: 8 });
   const license = fs.readFileSync(path.join(__dirname, "..", "src", "gamePort", "clientPreferences-LICENSE.txt"));
@@ -47,5 +54,5 @@ async function buildNativePreferences({ cacheRoot = path.join(__dirname, "..", "
   builds.set(target, work);
   try { return await work; } finally { if (builds.get(target) === work) builds.delete(target); }
 }
-module.exports = { buildNativePreferences };
+module.exports = { buildNativePreferences, nativePreferencesTarget };
 if (require.main === module) buildNativePreferences().then(result => console.log(JSON.stringify(result)), error => { console.error(error.message); process.exitCode = 1; });

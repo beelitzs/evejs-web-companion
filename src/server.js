@@ -39,6 +39,7 @@ const { createClientDogmaStaticEffectData } = require("./gamePort/clientDogmaSta
 const { createClientDogmaStaticGroupData } = require("./gamePort/clientDogmaStaticGroupData");
 const { createClientDogmaStaticLoadData } = require("./gamePort/clientDogmaStaticLoadData");
 const { loadClientWindowsClockPrimitives } = require("./gamePort/clientWindowsClockPrimitives");
+const { nativeClientReadiness } = require("./gamePort/nativeClientReadiness");
 const { createClientBlueWallclock } = require("./gamePort/clientBlueWallclock");
 const { createClientFileLogger } = require("./gamePort/clientFileLogger");
 const { createClientPreferencesProvider } = require("./gamePort/clientPreferences");
@@ -224,11 +225,21 @@ const someoneOnGamePort = pilotSetting !== null &&
 // keep their own JS paths, as before 2026-10-20: the operator, 2026-10-27, "a pilot must be able to log in
 // without a client install". It is chosen once, here, before any pilot connects. A native layer that fails while
 // on is a failure, never a fall back to the JS paths. A value that is not a mode stops the server starting.
+// "auto" runs it only where this machine has all it will need (gamePort/nativeClientReadiness.js: its add-ons
+// built, or Visual Studio's C++ tools and Node's headers to build them, and a Python 3): an install with no
+// compiler would otherwise refuse every game-port login.
 if (!["auto", "off"].includes(config.nativeClient)) {
   throw new Error(`EVEJS_NATIVE_CLIENT is "${config.nativeClient}": it is auto (the default) or off.`);
 }
-const nativeClientOn = config.nativeClient === "auto" && config.clientRoot !== null;
+const nativeReadiness = config.nativeClient === "auto" && config.clientRoot !== null
+  ? (options.nativeClientReadiness || nativeClientReadiness)({
+    clientRoot: config.clientRoot, python: config.clientPython,
+    preferencesCache: path.resolve(config.dataDir, "native-preferences", "bindings"),
+  })
+  : null;
+const nativeClientOn = nativeReadiness !== null && nativeReadiness.ready;
 app.locals.nativeClientOn = nativeClientOn;
+app.locals.nativeClientMissing = nativeReadiness && !nativeReadiness.ready ? nativeReadiness.missing : null;
 const nativeAttributeData = nativeClientOn ? createGodmaAttributeData({
   dogmaAttributes: () => clientBuiltData.table("dogmaAttributesOrdered"),
 }) : null;
@@ -17832,7 +17843,9 @@ function startServer(options = {}) {
         console.log(`Pilot transport: ${said} (pilots log in on the game port, ${game.host}:${game.port}; EVEJS_PILOT_TRANSPORT=gateway is the way back)`);
         console.log(appToStart.locals.nativeClientOn
           ? `Native client layer: on, running the client at EVEJS_CLIENT_ROOT=${config.clientRoot} (EVEJS_NATIVE_CLIENT=off runs without it)`
-          : `Native client layer: off (${config.nativeClient === "off" ? "EVEJS_NATIVE_CLIENT=off" : "no EVEJS_CLIENT_ROOT"}); game-port pilots keep the BFF's own JS paths`);
+          : `Native client layer: off (${config.nativeClient === "off" ? "EVEJS_NATIVE_CLIENT=off"
+            : appToStart.locals.nativeClientMissing ? `EVEJS_CLIENT_ROOT is set, but this machine lacks ${appToStart.locals.nativeClientMissing.join("; ")}`
+            : "no EVEJS_CLIENT_ROOT"}); game-port pilots keep the BFF's own JS paths`);
       } else {
         console.log(`Pilot transport: ${said} (pilots log in through the web gateway)`);
       }

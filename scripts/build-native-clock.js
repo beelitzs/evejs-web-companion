@@ -6,10 +6,16 @@ const fs = require("node:fs"), path = require("node:path"), os = require("node:o
 const { execFile } = require("node:child_process"), { promisify } = require("node:util");
 const execute = promisify(execFile), builds = new Map();
 const source = path.join(__dirname, "native-clock", "windows_clock.c");
-async function buildNativeClock({ cacheRoot = path.join(__dirname, "..", "data", "native-clock") } = {}) {
+const DEFAULT_CACHE = path.join(__dirname, "..", "data", "native-clock");
+const digestOf = sourceBytes => crypto.createHash("sha256").update(sourceBytes).update(`napi8-${process.arch}`).digest("hex");
+/** Where the binding of the source as it is now is kept, built or not: nativeClientReadiness asks before any build. */
+function nativeClockTarget({ cacheRoot = DEFAULT_CACHE } = {}) {
+  return path.join(path.resolve(cacheRoot, digestOf(fs.readFileSync(source))), "windows_clock.node");
+}
+async function buildNativeClock({ cacheRoot = DEFAULT_CACHE } = {}) {
   if (process.platform !== "win32" || process.arch !== "x64") throw new Error("Native client clock requires Windows x64.");
   const sourceBytes = fs.readFileSync(source), sourceSHA256 = crypto.createHash("sha256").update(sourceBytes).digest("hex");
-  const digest = crypto.createHash("sha256").update(sourceBytes).update(`napi8-${process.arch}`).digest("hex");
+  const digest = digestOf(sourceBytes);
   const directory = path.resolve(cacheRoot, digest), target = path.join(directory, "windows_clock.node");
   const identity = () => ({ target, sourceSHA256, bindingSHA256: crypto.createHash("sha256").update(fs.readFileSync(target)).digest("hex"), napi: 8 });
   const license = path.join(__dirname, "..", "src", "gamePort", "clientClock-LICENSE.txt");
@@ -56,5 +62,5 @@ async function buildNativeClock({ cacheRoot = path.join(__dirname, "..", "data",
   builds.set(target, work);
   try { return await work; } finally { if (builds.get(target) === work) builds.delete(target); }
 }
-module.exports = { buildNativeClock };
+module.exports = { buildNativeClock, nativeClockTarget };
 if (require.main === module) buildNativeClock().then(result => console.log(JSON.stringify(result)), error => { console.error(error.message); process.exitCode = 1; });

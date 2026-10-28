@@ -253,7 +253,7 @@ EVEJS_GATEWAY_URL=http://127.0.0.1:26002/_evejs-web/v1
 EVEJS_WEB_GATEWAY_TOKEN=
 EVEJS_ICON_CACHE_DIR=/path/to/evejs-web-poc/data/icon-cache
 EVEJS_CLIENT_ROOT=             # the retail client's folder (holding tq and ResFiles), for its words and data; optional
-EVEJS_NATIVE_CLIENT=auto       # game-port pilots run that client's own Python: auto (when EVEJS_CLIENT_ROOT is set) or off
+EVEJS_NATIVE_CLIENT=auto       # game-port pilots run that client's own Python: auto (when EVEJS_CLIENT_ROOT is set and the machine can build it: Visual Studio's C++ tools, Node's headers, Python 3) or off
 EVEJS_PILOT_TRANSPORT=gameport # where a chosen pilot's session is held: gameport (default) or gateway
 EVEJS_PILOT_TRANSPORT_OVERRIDES= # single accounts, e.g. "alice=gateway,bob=gameport"
 EVEJS_GAME_HOST=               # the game port's host; default: the gateway's own host
