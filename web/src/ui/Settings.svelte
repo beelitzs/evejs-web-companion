@@ -11,6 +11,7 @@
     startIconPull,
     type IconCacheStatus,
   } from "../app/iconCache.ts";
+  import { forgetFailedIcons } from "./TypeIcon.svelte";
   import { flyingDistances, WARP_RANGES, HOLD_RANGES, setDistance } from "./flyingDistances.ts";
   // R81 — sound cues. Off by default; see ui/sound.ts for why the audio device
   // is not opened until someone asks for one.
@@ -108,7 +109,10 @@
 
   async function refresh(): Promise<void> {
     try {
+      const before = status;
       status = await fetchIconStatus();
+      // A pull that has finished may have cached pictures the page has already seen fail.
+      if (before?.running && !status.running) forgetFailedIcons();
       error = "";
     } catch (cause) {
       error = cause instanceof Error ? cause.message : String(cause);
@@ -133,6 +137,8 @@
     try {
       const value = await setIconAutoDownload(!status.autoDownload);
       status = { ...status, autoDownload: value };
+      // With auto-fill on the BFF fetches a missing picture before it answers, so one that failed may be had now.
+      if (value) forgetFailedIcons();
     } catch (cause) {
       error = cause instanceof Error ? cause.message : String(cause);
     } finally {
@@ -147,6 +153,7 @@
     try {
       await startIconPull(source);
       await refresh();
+      if (!status?.running) forgetFailedIcons();
     } catch (cause) {
       error = cause instanceof Error ? cause.message : String(cause);
     } finally {

@@ -1,3 +1,23 @@
+<script module lang="ts">
+  import { SvelteSet } from "svelte/reactivity";
+
+  // Every picture the BFF has answered with a 404, for the page's life. Each icon
+  // used to remember only its own failure, so the same missing picture was asked
+  // for again by every row that drew it and every time a window opened (a
+  // reward list asked for one missing icon sixteen times per opening). Kept by
+  // address and shared, so a picture known to be missing is drawn as its tile at
+  // once, and a sibling still waiting on it gives up the moment one fails.
+  //
+  // A 404 stays true until the icon cache holds more: with auto-fill on the BFF
+  // fetches a missing icon before it answers, so a 404 means it cannot be had.
+  const failedSources = new SvelteSet<string>();
+
+  /** The icon cache may hold more now (a pull started, auto-fill turned on): try every picture again. */
+  export function forgetFailedIcons(): void {
+    failedSources.clear();
+  }
+</script>
+
 <script lang="ts">
   // ONE item icon, used by every panel that shows a thing (goal R27).
   //
@@ -62,16 +82,13 @@
   let { typeID, name, size = "sm", fallbackText = null, imageUrl = null }: Props = $props();
 
   /**
-   * The type whose icon we have already watched fail. Keyed by typeID rather
-   * than a bare boolean so that a row reused for a DIFFERENT item (Svelte
-   * reusing a DOM node across a keyed list update) tries that item's icon
-   * instead of inheriting the previous one's failure.
+   * What the box shows: its own picture where it is given one, else the type's icon. A picture already known to be
+   * missing (failedSources, above) is not asked for again. Keyed by the address rather than a flag on this instance,
+   * so a row reused for a DIFFERENT item (Svelte reusing a DOM node across a keyed list update) tries that item's
+   * picture instead of inheriting the previous one's failure.
    */
-  let failedFor = $state<number | string | null>(null);
-
-  /** What the box shows: its own picture where it is given one, else the type's icon. */
-  const shown = $derived<number | string | null>(imageUrl ?? typeID);
-  const src = $derived(failedFor !== null && failedFor === shown ? null : (imageUrl ?? typeIconUrl(typeID)));
+  const wanted = $derived(imageUrl ?? typeIconUrl(typeID));
+  const src = $derived(wanted !== null && failedSources.has(wanted) ? null : wanted);
   const tileText = $derived(fallbackText ?? iconInitials(name));
 </script>
 
@@ -83,7 +100,7 @@
       loading="lazy"
       decoding="async"
       onerror={() => {
-        failedFor = shown;
+        if (wanted !== null) failedSources.add(wanted);
       }}
     />
   {:else}
