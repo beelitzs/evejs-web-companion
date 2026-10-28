@@ -8383,6 +8383,13 @@
       scrollbar-width: none;
     }
     .hangar .global-launchers::-webkit-scrollbar { display: none; }
+    /* ⚠ AND THE ACTIONS MAY SHRINK HERE. They "never shrink" above (a row of its own instead), but at 375 the row
+     * alone is 440px with a pilot in the client (Pilot Training, Manage, + Add account, ◀ To client) and ran the
+     * hangar 452px wide. Shrinking to the line lets its own `flex-wrap` put the buttons on two lines. */
+    .hangar-head-actions {
+      flex: 0 1 auto;
+      min-width: 0;
+    }
     .hangar-chiprow {
       position: sticky;
       top: 52px;
