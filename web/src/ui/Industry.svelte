@@ -41,6 +41,7 @@
     IndustryActivity,
     IndustryBlueprintRow,
     IndustryJobRow,
+    IndustryJobStatus,
   } from "../store/types.ts";
   import { resolvedName } from "../store/names.ts";
   // R27 — the shared item icon: one cached picture per thing, falling back
@@ -120,9 +121,21 @@
     return blueprint.original ? "Unlimited (original)" : `${blueprint.runs} left`;
   }
 
+  /**
+   * A job's status as the window shows it: one the server still calls running whose end date has passed is ready, as
+   * the client's industry service marks it each second (industrySvc.py _PollJobCompletionThreaded, 182 to 186: an
+   * installed job whose endDate is before now, STATUS_READY). It stood at "Any moment now" with "Stop this job…"
+   * until the window was read again.
+   */
+  function shownStatus(job: IndustryJobRow): IndustryJobStatus {
+    if (job.status !== "running") return job.status;
+    const remaining = secondsUntil(job.endDate, nowMs);
+    return remaining !== null && remaining < 0 ? "ready" : job.status;
+  }
+
   /** How long a running job has to go, or why it has no countdown. */
   function jobTimeText(job: IndustryJobRow): string {
-    if (job.status === "ready") {
+    if (shownStatus(job) === "ready") {
       return "Finished — collect it";
     }
     if (!isActiveJob(job.status)) {
@@ -609,13 +622,13 @@
                   {facilityName(job.facilityID)}
                   <PlaceRouteMenu {store} {flow} placeID={job.facilityID} heading={FACILITY_HEADING} />
                 </td>
-                <td data-label="Status">{STATUS_LABELS[job.status]}</td>
+                <td data-label="Status">{STATUS_LABELS[shownStatus(job)]}</td>
                 <td class="num" data-label="Time left">{jobTimeText(job)}</td>
                 <td data-label="Action">
                   <div class="row-actions">
                     <!-- One or the other, as the client's own button is (submitButton.ClickFunc): a job
                          that is ready is collected, and only a job that is not is stopped. -->
-                    {#if job.status === "ready"}
+                    {#if shownStatus(job) === "ready"}
                       <button type="button" disabled={busy} onclick={() => deliver(job.jobID)}>
                         Collect the results
                       </button>
