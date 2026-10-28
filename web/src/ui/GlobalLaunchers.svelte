@@ -40,6 +40,13 @@
 
 <div class="global-launchers" role="group" aria-label="Every pilot">
   <a class="global-launch" href="/ship-provisioning" target="_blank" rel="noopener" aria-label="Provisioning Center" title="Open the separate Provisioning Center for owned pilots">
+    <!-- Ready Fit's glyph (the `provisioning` tab), as the MCC door carries its tab's: without one, a narrow bar
+         that drops the words left this door an empty box. -->
+    <svg class="global-launch-glyph" viewBox="0 0 24 24" aria-hidden="true">
+      {#each NEOCOM_GLYPHS.provisioning as d (d)}
+        <path {d} />
+      {/each}
+    </svg>
     <span class="global-launch-text">Provisioning Center</span>
   </a>
   {#each GLOBAL_LAUNCHERS as launcher (launcher.id)}
