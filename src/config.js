@@ -58,6 +58,11 @@ module.exports = {
   // The 64-bit Python 3 that hosts the client's own Python when one of the
   // client's built data tables is read (src/clientData/clientBuiltData.js).
   clientPython: process.env.EVEJS_PYTHON || "python",
+  // Whether game-port pilots run that client's own Python, the native client
+  // layer (docs/native-layer-optional-plan.md). "auto", the default, runs it
+  // when clientRoot names an install. "off" never does; the install's words
+  // and data are still read for the page. server.js refuses any other value.
+  nativeClient: (process.env.EVEJS_NATIVE_CLIENT || "auto").trim().toLowerCase(),
   host: process.env.HOST || "127.0.0.1",
   port: Number.parseInt(process.env.PORT || "26500", 10) || 26500,
   sessionCookieName: "evejs_web_poc",

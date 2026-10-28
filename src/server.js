@@ -217,16 +217,27 @@ app.locals.gatewayLedger = gatewayLedger;
 const pilotSetting = options.pilotTransportFor ? null : pilotTransportSetting(options.env || process.env);
 const someoneOnGamePort = pilotSetting !== null &&
   (pilotSetting.fallback === "gameport" || [...pilotSetting.overrides.values()].includes("gameport"));
-const nativeAttributeData = createGodmaAttributeData({
+// The native client layer (docs/native-layer-optional-plan.md): each game-port pilot runs the installed client's
+// own Python for its preferences, session, logging, dogma static service, godma and inventory header. It is on
+// only where there is an install to run (EVEJS_CLIENT_ROOT) and EVEJS_NATIVE_CLIENT is not "off". Off, the pilots
+// keep their own JS paths, as before 2026-10-20: the operator, 2026-10-27, "a pilot must be able to log in
+// without a client install". It is chosen once, here, before any pilot connects. A native layer that fails while
+// on is a failure, never a fall back to the JS paths. A value that is not a mode stops the server starting.
+if (!["auto", "off"].includes(config.nativeClient)) {
+  throw new Error(`EVEJS_NATIVE_CLIENT is "${config.nativeClient}": it is auto (the default) or off.`);
+}
+const nativeClientOn = config.nativeClient === "auto" && config.clientRoot !== null;
+app.locals.nativeClientOn = nativeClientOn;
+const nativeAttributeData = nativeClientOn ? createGodmaAttributeData({
   dogmaAttributes: () => clientBuiltData.table("dogmaAttributesOrdered"),
-});
+}) : null;
 // Explicit companion profile, shared on disk but independently parsed by each
 // emulated client. This never selects or changes a nearby retail prefs profile.
-const nativePreferencesProvider = createClientPreferencesProvider({
+const nativePreferencesProvider = nativeClientOn ? createClientPreferencesProvider({
   clientRoot: config.clientRoot, python: config.clientPython,
   settingsRoot: path.resolve(config.dataDir, "native-client-settings"),
   cacheRoot: path.resolve(config.dataDir, "native-preferences"),
-});
+}) : null;
 const gamePortPilots = options.gamePortPilots !== undefined
   ? options.gamePortPilots
   : someoneOnGamePort && !options.eveGatewayClient
@@ -248,108 +259,112 @@ const gamePortPilots = options.gamePortPilots !== undefined
         dogmaEffects: async (effectIDs) => clientBuiltData.rows("dogmaEffects", effectIDs),
         categoryOf: (typeID) => (staticData.getType(typeID) || {}).categoryID ?? null,
       }).ewarTypeOf,
-      // godma's named effect rows use the installed client's ordered default
-      // relationships and definitions. A failed read is not an empty table.
-      nativeEffectData: createGodmaEffectData({
-        typeDogma: async (typeID) => {
-          const rows = await clientBuiltData.rows("typeDogma", [typeID]);
-          return rows ? rows[String(typeID)] : undefined;
-        },
-        dogmaEffects: (effectIDs) => clientBuiltData.rows("dogmaEffects", effectIDs),
-        messages: (messageIDs) => clientWords.messages(messageIDs),
-      }),
-      nativeAttributeData,
-      // Mutable memoized helper maps belong to each emulated client, while
-      // the immutable installed definition projection may be shared.
-      createNativeClientStaticAttributeData: () => createClientDogmaStaticAttributeData({
-        attributeData: nativeAttributeData,
-        constants: () => clientConstants.dogmaStaticAttributes(),
-      }),
-      createNativeClientStaticEffectData: () => createClientDogmaStaticEffectData({
-        dogmaEffects: () => clientBuiltData.table("dogmaEffectsOrdered"),
-        typeEffects: () => clientBuiltData.table("typeDogmaEffectsOrdered"),
-        constants: () => clientConstants.dogmaStaticEffects(),
-      }),
-      createNativeClientStaticGroupData: () => createClientDogmaStaticGroupData({
-        typeGroups: () => clientBuiltData.table("typesGroupIDsOrdered"),
-        groups: () => clientBuiltData.table("groupsOrdered"),
-        typeNameIDs: () => clientBuiltData.table("typeNameIDs"),
-        messages: ids => clientWords.messages(ids),
-        constants: () => clientConstants.dogmaStaticGroups(),
-        language: () => clientWords.status().language,
-      }),
-      createNativeClientClock: async () => createClientBlueWallclock({ primitives: await loadClientWindowsClockPrimitives() }),
-      createNativeClientLog: () => createClientFileLogger({ directory: path.resolve(config.dataDir, "native-client-logs") }),
-      createNativeClientLogModule: ({ log }) => createClientLogModule({ provider: nativePreferencesProvider, log }),
-      createNativeClientTaskletTimer: owners => createClientTaskletTimer({ provider: nativePreferencesProvider, ...owners }),
-      prepareNativeClientSession: session => createClientSessionOwners({ provider: nativePreferencesProvider, session, clientRoot: config.clientRoot }),
-      createNativeClientInventoryHeader: owners => createClientInventoryHeader({ provider: nativePreferencesProvider, ...owners }),
-      createNativeClientGodmaHeaders: owners => createClientGodmaHeaders({ provider: nativePreferencesProvider, ...owners }),
-      createNativeClientStaticConstructor: owners => createClientStaticService({
-        provider: nativePreferencesProvider, ...owners,
-        constants: () => clientConstants.dogmaStaticEffects(),
-        builtData: createClientNativeBuiltData({ provider: nativePreferencesProvider, clientRoot: config.clientRoot }),
-        attributeConstants: () => clientConstants.dogmaStaticAttributes(),
-        typeAttributeConstants: () => clientConstants.dogmaStaticTypeAttributes(),
-        loadTailConstants: async () => ({ ...await clientConstants.dogmaStaticLoadTail(), ...await clientConstants.dogmaStaticGroups() }),
-        createLocalizationSettings: () => {
-          if (owners.nativeSessionOwner?.preferences !== owners.preferences) throw new Error("Static construction must retain the pre-login native preference owner.");
-          return owners.nativeSessionOwner.localizationSettings;
-        },
-        localizationData: createClientNativeLocalization({ provider: nativePreferencesProvider, clientRoot: config.clientRoot, cacheRoot: path.resolve(config.dataDir, "native-preferences/localization") }),
-        transportSession: owners.session,
-        createSessionContext: () => owners.nativeSessionOwner.sessionContext,
-        createStdLogging: ({ sessionContext, localizationSettings }) => createClientStdLogging({
-          provider: nativePreferencesProvider, logging: owners.logging, preferences: owners.preferences,
-          sessionContext, boot: localizationSettings.boot,
+      // The native client layer's owners, only while it is on (nativeClientOn, above). Off, none is given, and
+      // each pilot keeps its own JS paths for what they would have done.
+      ...(nativeClientOn ? {
+        // godma's named effect rows use the installed client's ordered default
+        // relationships and definitions. A failed read is not an empty table.
+        nativeEffectData: createGodmaEffectData({
+          typeDogma: async (typeID) => {
+            const rows = await clientBuiltData.rows("typeDogma", [typeID]);
+            return rows ? rows[String(typeID)] : undefined;
+          },
+          dogmaEffects: (effectIDs) => clientBuiltData.rows("dogmaEffects", effectIDs),
+          messages: (messageIDs) => clientWords.messages(messageIDs),
         }),
-        createErrorLogging: ({ standardLogging, sessionContext }) => createClientErrorLogging({
-          provider: nativePreferencesProvider, logging: owners.logging, standardLogging,
-          taskletTimer: owners.taskletTimer, sessionContext,
+        nativeAttributeData,
+        // Mutable memoized helper maps belong to each emulated client, while
+        // the immutable installed definition projection may be shared.
+        createNativeClientStaticAttributeData: () => createClientDogmaStaticAttributeData({
+          attributeData: nativeAttributeData,
+          constants: () => clientConstants.dogmaStaticAttributes(),
         }),
-        createLocalizationLookup: inputs => createClientLocalizationLookup({ provider: nativePreferencesProvider, ...inputs }),
-      }),
-      createNativeClientPreferences: () => nativePreferencesProvider.createOwner(),
-      createNativeClientStaticLoadData: readers => createClientDogmaStaticLoadData({
-        ...readers,
-        constants: () => clientConstants.dogmaStaticLoadTail(),
-        prepareTypeInputs: async ids => {
-          const rows = await Promise.all([clientBuiltData.rows("typeDogma", ids), clientBuiltData.rows("types", ids)]);
-          if (rows.some(table => table === null)) throw new Error("Installed static-load selected type rows are unavailable.");
-        },
-      }),
-      // Local type values for the future native attribute-object factory.
-      // Preparing them never registers an item or supplies an accurate value.
-      nativeTypeAttributes: createClientDogmaStaticAttributes({
-        attributeData: nativeAttributeData,
-        typeDogma: async id => {
-          const rows = await clientBuiltData.rows("typeDogma", [id]);
-          return rows ? rows[id] : undefined;
-        },
-        types: async id => {
-          const rows = await clientBuiltData.rows("types", [id]);
-          return rows ? rows[id] : undefined;
-        },
-      }),
-      // Ordered list input for clientStatic's distinct FIRST-match lookup.
-      // This prepares a prerequisite, never an initialized static service.
-      nativeClientStaticTypeData: createClientDogmaStaticTypeData({
-        typeDogma: async id => {
-          const rows = await clientBuiltData.rows("typeDogma", [id]);
-          return rows ? rows[id] : undefined;
-        },
-        types: async id => {
-          const rows = await clientBuiltData.rows("types", [id]);
-          return rows ? rows[id] : undefined;
-        },
-      }),
-      // Installed primary-English type names, prepared before synchronous
-      // diagnostic reads. Alternate important-language/QA policy is separate.
-      nativeTypeNames: createGodmaPrimaryTypeNames({
-        typeNameIDs: () => clientBuiltData.table("typeNameIDs"),
-        messages: ids => clientWords.messages(ids),
-        language: () => clientWords.status().language,
-      }),
+        createNativeClientStaticEffectData: () => createClientDogmaStaticEffectData({
+          dogmaEffects: () => clientBuiltData.table("dogmaEffectsOrdered"),
+          typeEffects: () => clientBuiltData.table("typeDogmaEffectsOrdered"),
+          constants: () => clientConstants.dogmaStaticEffects(),
+        }),
+        createNativeClientStaticGroupData: () => createClientDogmaStaticGroupData({
+          typeGroups: () => clientBuiltData.table("typesGroupIDsOrdered"),
+          groups: () => clientBuiltData.table("groupsOrdered"),
+          typeNameIDs: () => clientBuiltData.table("typeNameIDs"),
+          messages: ids => clientWords.messages(ids),
+          constants: () => clientConstants.dogmaStaticGroups(),
+          language: () => clientWords.status().language,
+        }),
+        createNativeClientClock: async () => createClientBlueWallclock({ primitives: await loadClientWindowsClockPrimitives() }),
+        createNativeClientLog: () => createClientFileLogger({ directory: path.resolve(config.dataDir, "native-client-logs") }),
+        createNativeClientLogModule: ({ log }) => createClientLogModule({ provider: nativePreferencesProvider, log }),
+        createNativeClientTaskletTimer: owners => createClientTaskletTimer({ provider: nativePreferencesProvider, ...owners }),
+        prepareNativeClientSession: session => createClientSessionOwners({ provider: nativePreferencesProvider, session, clientRoot: config.clientRoot }),
+        createNativeClientInventoryHeader: owners => createClientInventoryHeader({ provider: nativePreferencesProvider, ...owners }),
+        createNativeClientGodmaHeaders: owners => createClientGodmaHeaders({ provider: nativePreferencesProvider, ...owners }),
+        createNativeClientStaticConstructor: owners => createClientStaticService({
+          provider: nativePreferencesProvider, ...owners,
+          constants: () => clientConstants.dogmaStaticEffects(),
+          builtData: createClientNativeBuiltData({ provider: nativePreferencesProvider, clientRoot: config.clientRoot }),
+          attributeConstants: () => clientConstants.dogmaStaticAttributes(),
+          typeAttributeConstants: () => clientConstants.dogmaStaticTypeAttributes(),
+          loadTailConstants: async () => ({ ...await clientConstants.dogmaStaticLoadTail(), ...await clientConstants.dogmaStaticGroups() }),
+          createLocalizationSettings: () => {
+            if (owners.nativeSessionOwner?.preferences !== owners.preferences) throw new Error("Static construction must retain the pre-login native preference owner.");
+            return owners.nativeSessionOwner.localizationSettings;
+          },
+          localizationData: createClientNativeLocalization({ provider: nativePreferencesProvider, clientRoot: config.clientRoot, cacheRoot: path.resolve(config.dataDir, "native-preferences/localization") }),
+          transportSession: owners.session,
+          createSessionContext: () => owners.nativeSessionOwner.sessionContext,
+          createStdLogging: ({ sessionContext, localizationSettings }) => createClientStdLogging({
+            provider: nativePreferencesProvider, logging: owners.logging, preferences: owners.preferences,
+            sessionContext, boot: localizationSettings.boot,
+          }),
+          createErrorLogging: ({ standardLogging, sessionContext }) => createClientErrorLogging({
+            provider: nativePreferencesProvider, logging: owners.logging, standardLogging,
+            taskletTimer: owners.taskletTimer, sessionContext,
+          }),
+          createLocalizationLookup: inputs => createClientLocalizationLookup({ provider: nativePreferencesProvider, ...inputs }),
+        }),
+        createNativeClientPreferences: () => nativePreferencesProvider.createOwner(),
+        createNativeClientStaticLoadData: readers => createClientDogmaStaticLoadData({
+          ...readers,
+          constants: () => clientConstants.dogmaStaticLoadTail(),
+          prepareTypeInputs: async ids => {
+            const rows = await Promise.all([clientBuiltData.rows("typeDogma", ids), clientBuiltData.rows("types", ids)]);
+            if (rows.some(table => table === null)) throw new Error("Installed static-load selected type rows are unavailable.");
+          },
+        }),
+        // Local type values for the future native attribute-object factory.
+        // Preparing them never registers an item or supplies an accurate value.
+        nativeTypeAttributes: createClientDogmaStaticAttributes({
+          attributeData: nativeAttributeData,
+          typeDogma: async id => {
+            const rows = await clientBuiltData.rows("typeDogma", [id]);
+            return rows ? rows[id] : undefined;
+          },
+          types: async id => {
+            const rows = await clientBuiltData.rows("types", [id]);
+            return rows ? rows[id] : undefined;
+          },
+        }),
+        // Ordered list input for clientStatic's distinct FIRST-match lookup.
+        // This prepares a prerequisite, never an initialized static service.
+        nativeClientStaticTypeData: createClientDogmaStaticTypeData({
+          typeDogma: async id => {
+            const rows = await clientBuiltData.rows("typeDogma", [id]);
+            return rows ? rows[id] : undefined;
+          },
+          types: async id => {
+            const rows = await clientBuiltData.rows("types", [id]);
+            return rows ? rows[id] : undefined;
+          },
+        }),
+        // Installed primary-English type names, prepared before synchronous
+        // diagnostic reads. Alternate important-language/QA policy is separate.
+        nativeTypeNames: createGodmaPrimaryTypeNames({
+          typeNameIDs: () => clientBuiltData.table("typeNameIDs"),
+          messages: ids => clientWords.messages(ids),
+          language: () => clientWords.status().language,
+        }),
+      } : {}),
       onNumericChargeError: (message, error, characterID) => {
         console.error(`[game-port] pilot ${characterID}:`, message, error);
       },
@@ -17793,6 +17808,9 @@ function startServer(options = {}) {
       if (appToStart.locals.gamePortPilots) {
         const game = gameEndpoint(process.env);
         console.log(`Pilot transport: ${said} (pilots log in on the game port, ${game.host}:${game.port}; EVEJS_PILOT_TRANSPORT=gateway is the way back)`);
+        console.log(appToStart.locals.nativeClientOn
+          ? `Native client layer: on, running the client at EVEJS_CLIENT_ROOT=${config.clientRoot} (EVEJS_NATIVE_CLIENT=off runs without it)`
+          : `Native client layer: off (${config.nativeClient === "off" ? "EVEJS_NATIVE_CLIENT=off" : "no EVEJS_CLIENT_ROOT"}); game-port pilots keep the BFF's own JS paths`);
       } else {
         console.log(`Pilot transport: ${said} (pilots log in through the web gateway)`);
       }
