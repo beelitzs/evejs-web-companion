@@ -554,10 +554,22 @@ export function rangeLabel(range: number): string {
   return `Up to ${range} jumps away`;
 }
 
-/** How far away an order is, in words. */
-export function distanceLabel(jumps: number): string {
+/** quote.py GetJumps: the jump count the client says as unreachable rather than as a number. */
+const UNREACHABLE_JUMPS = 1000000;
+
+/**
+ * How far away an order is, in words, as the client's Jumps column says it (quote.py GetJumps, 426 to 439): an order
+ * in the system is in the pilot's own station or structure, or elsewhere in the system; else unreachable, or its
+ * jumps. `inPilotsStation` is the client's check of the order's station against session.stationid / structureid.
+ * (EveJS sends -1 for the pilot's own station, as marketsvc.GetStationDistance does; the client's rows carry the
+ * system's 0 there, RefreshJumps. Either is in the system.)
+ */
+export function distanceLabel(jumps: number, inPilotsStation = false): string {
   if (jumps <= 0) {
-    return "Where you are";
+    return inPilotsStation ? "In this station" : "In this system";
+  }
+  if (jumps === UNREACHABLE_JUMPS) {
+    return "Unreachable";
   }
   return jumps === 1 ? "1 jump away" : `${jumps} jumps away`;
 }

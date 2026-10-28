@@ -586,7 +586,10 @@ test("rangeLabel and distanceLabel never print a sentinel as a number", () => {
   assert.equal(rangeLabel(32767), "Anywhere in the region");
   assert.equal(rangeLabel(1), "Up to 1 jump away");
   assert.equal(rangeLabel(5), "Up to 5 jumps away");
-  assert.equal(distanceLabel(0), "Where you are");
+  assert.equal(distanceLabel(0), "In this system");
+  assert.equal(distanceLabel(0, true), "In this station");
+  assert.equal(distanceLabel(-1, true), "In this station");
+  assert.equal(distanceLabel(1000000), "Unreachable");
   assert.equal(distanceLabel(1), "1 jump away");
   assert.equal(distanceLabel(7), "7 jumps away");
 });

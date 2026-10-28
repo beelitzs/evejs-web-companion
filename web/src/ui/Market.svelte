@@ -414,6 +414,11 @@
     return resolvedName($names.resolved, "system", solarSystemID, "an unknown system");
   }
 
+  /** How far away an order is, the order's station checked against the pilot's own (quote.py GetJumps). */
+  function orderDistance(order: MarketOrderRow): string {
+    return distanceLabel(order.jumps, order.stationID === $market.stationID || order.stationID === $market.structureID);
+  }
+
   /** A retail FILETIME as a plain date. Never rendered as a number. */
   function dateText(filetime: bigint | null): string {
     if (filetime === null) {
@@ -1014,7 +1019,7 @@
           Show orders
           <select bind:value={maxJumps}>
             <option value={-1}>Anywhere in the region</option>
-            <option value={0}>Where you are only</option>
+            <option value={0}>In this system only</option>
             <option value={1}>Within 1 jump</option>
             <option value={5}>Within 5 jumps</option>
             <option value={10}>Within 10 jumps</option>
@@ -1062,7 +1067,7 @@
                 <span class="book-main">
                   <span class="book-where">{stationName(order.stationID)}</span>
                   <span class="book-meta">
-                    {systemName(order.solarSystemID)} · {distanceLabel(order.jumps)}{order.minimumVolume >
+                    {systemName(order.solarSystemID)} · {orderDistance(order)}{order.minimumVolume >
                     1
                       ? ` · ${order.minimumVolume} minimum`
                       : ""}
@@ -1095,7 +1100,7 @@
                 <span class="book-main">
                   <span class="book-where">{stationName(order.stationID)}</span>
                   <span class="book-meta">
-                    {systemName(order.solarSystemID)} · {distanceLabel(order.jumps)} · reaches {rangeLabel(
+                    {systemName(order.solarSystemID)} · {orderDistance(order)} · reaches {rangeLabel(
                       order.range,
                     )}
                   </span>
