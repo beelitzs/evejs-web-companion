@@ -1,7 +1,7 @@
 # Making the native client layer optional (B2)
 
-Plan, 2026-10-28, approved by the operator the same day. **Phases 1 and 2 are done** (results under each); phases 3
-and 4 wait on the operator's decisions. Every line reference was read in the code on master at `f73c7db2`; anything
+Plan, 2026-10-28, approved by the operator the same day. **Done:** phases 1 and 2, phase 3, and phase 4's 4a, with
+the results under each. 4b, prebuilt add-ons, is left for later. Every line reference was read in the code on master at `f73c7db2`; anything
 inferred and not yet seen live is marked *inferred*.
 
 ## The goal
@@ -212,6 +212,24 @@ The native path sends two things the JS path does not:
 The BFF sent neither before 2026-10-21, and EveJS accepted that. *Inferred:* without the releases, EveJS keeps every
 object bound for a pilot until the session ends, which matters for long sessions.
 
+**Done 2026-10-28**, as recommended and approved the same day:
+- **3a, `GetItemDescriptor` (`d0c3a3ec`).** The JS path now asks it where the client's `invCache` does: once, when
+  a container's listing first needs the item header. That is in `List` after the remote listing and in `ListByFlags`
+  before it, as the native storage's `begin()` stands. Tranquility asks it right after the ship's first listing
+  ("Logging in then renaming ship", 1776 to 1777). Seen live on 26512: after `SelectCharacterID`, the first `List()`
+  at 18:16:27.820, then `GetItemDescriptor` at .855, once.
+  - *Measured, not changed:* the native path asks it earlier, during godma's preparation and before
+    `SelectCharacterID` (call 14 of a login on 26510).
+- **3b, the releases: fixed in EveJS, not imitated (eve.js `dc8fb1d29`, on `main`, not pushed by me).** The inferred
+  line above was wrong. EveJS released a game-port session's bound objects only on `ClientHasReleasedTheseObjects`,
+  and nothing released them when the session ended, so they stayed until EveJS restarted. Today's logs showed 56
+  release notices freeing 192 objects, nearly all from the native path on 26510.
+  - `ServiceManager.releaseSessionBoundObjects` now lets a session's objects go when its connection closes. An object
+    another session still holds (a shared trade) stays until the last holder goes.
+  - Seen live: Test Pilot going offline on 26512 logged "released 11 bound objects with the closed session".
+  - The JS path still sends no release while a pilot is online. Retail's release follows Python's garbage
+    collection, which the JS path has no counterpart for.
+
 ### Phase 4: an install but no compiler (optional)
 
 Ship the two add-ons prebuilt:
@@ -225,6 +243,25 @@ Two catches:
 - Both are Windows x64 only.
 
 With phase 1's `off`, this is only for someone who wants the native layer without Visual Studio.
+
+**4a, done 2026-10-28 (`1111370a`).** Before, `auto` ran the layer wherever a client root was set. The add-ons are
+built on a pilot's first connection, and the first failure is kept until restart, so an install without Visual
+Studio refused every game-port login. That was B2 again, by another cause.
+- At start-up, before any pilot connects, `gamePort/nativeClientReadiness.js` now checks what the layer will need:
+  - Windows x64;
+  - the install's `python27.dll` and `code.ccp`;
+  - a Python 3;
+  - each add-on already built for its current sources, or what builds it: Node's headers in node-gyp's cache, and
+    Visual Studio's x64 C++ tools.
+- Where something is missing, the layer is off and the start-up log names what. It builds nothing and catches no
+  failure of the layer itself.
+- Seen live on a third BFF (26513) with the client root and Visual Studio hidden. Its log said "lacks the preference
+  add-on built, or what builds it: no Visual Studio". test2's character selection listed its pilots, and Test Three
+  came online. Nothing native was written, and the install's own tables were still read. 26510, with Visual Studio,
+  still runs the layer.
+
+**4b, prebuilt add-ons: not now** (recommended and approved 2026-10-28). Revisit if a release needs the native
+layer's exact parity on machines without Visual Studio.
 
 ## What a BFF without the install gives up
 
@@ -245,11 +282,14 @@ This is for the release notes, so nobody mistakes it for the native path.
 2. **Phase 3:** port the two wire messages to the JS path, or accept its wire as it was before 2026-10-21.
 3. **Phase 4:** ship prebuilt add-ons, or leave the native layer to machines with Visual Studio.
 
-Phases 1 and 2 needed no decision beyond approving this plan. Decision 1 was taken with the approval; 2 and 3 are open.
+Phases 1 and 2 needed no decision beyond approving this plan. All three are taken:
+1. `auto` plus `off`, with the approval.
+2. Phase 3, 2026-10-28: port `GetItemDescriptor`; fix the releases in EveJS rather than imitate them.
+3. Phase 4, 2026-10-28: `auto` checks the machine (4a); no prebuilt add-ons for now (4b).
 
 ## Noticed, not part of this plan
 
 - **Unused dogma port:** `clientDogmaConstruction.js`, `clientDogmaIM.js` and about 14 files that hang only off them
   (about 2,650 lines, from 2026-10-21's first phase) are required by nothing in `src`, `test` or `scripts`.
-- **A rebuild is due:** the current preference add-on sources hash to `a69936ae…`, which is not in the cache, so the
-  next start with a client root rebuilds it. That is fine on this machine.
+- **A rebuild was due:** the preference add-on sources hash to `a69936ae…`, which was not in the cache. 26510's next
+  start rebuilt it (it is in `bffgp-data`'s cache now).
