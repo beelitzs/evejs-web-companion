@@ -239,8 +239,12 @@
     if (s) void s.flow.logout().catch(() => {});
   }
 
+  // A pilot chosen in the character bar is a pilot to look at, so the hangar
+  // gives way, as goToPilot's does: with it left open over the cockpit a click
+  // on a chip changed nothing on screen, the active pilot's least of all.
   function switchTo(id: string): void {
     activeId = id;
+    hangarOpen = false;
   }
 
   // --- the hangar's "bring online" -------------------------------------------
