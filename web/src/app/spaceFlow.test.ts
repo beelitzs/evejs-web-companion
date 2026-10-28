@@ -231,12 +231,16 @@ test("a refused move from a row is shown as a reason, not a silent no-op", async
   assert.match(store.flight.get().actionError ?? "", /Warp refused: .*You are warp scrambled\./);
 });
 
-test("the overview poll runs at the retail overview cadence", () => {
-  // ⚠ R89 raised this from 1_000 to 200 and the connection failures that
-  // followed were the load; R92 settled it at retail's own overview cadence.
-  // Nothing is drawn between reads, so this is also the frame rate of space —
-  // see ui/Tactical.svelte for the two smoothing attempts that did not survive.
-  assert.equal(SPACE_POLL_INTERVAL_MS, 500);
+test("the overview poll runs once a Destiny tick, a second", () => {
+  // Space changes once a second: CCP's Destiny steps the park once per second of
+  // sim time (carbonengine/destiny Ballpark.cpp OnTick, which the BFF's park
+  // ports), and its server sends one batch a tick (python/destiny/net/server
+  // _ticker.py), as EveJS has since its retail tick (eve.js
+  // doc/DESTINY_RETAIL_TICK.md). The operator's word, 2026-10-27: the web app
+  // reads space once a second as the client receives it. Nothing is drawn
+  // between reads, so this is also the frame rate of space — see
+  // ui/Tactical.svelte for the two smoothing attempts that did not survive.
+  assert.equal(SPACE_POLL_INTERVAL_MS, 1_000);
 });
 
 test("a beat is SKIPPED while a read is still in flight", async () => {
@@ -565,10 +569,12 @@ test("its cadence does not move when the snapshot's does", () => {
   // ⚠ The property, stated directly: making the grid smoother must never make
   // this read more often. If SPACE_POLL_INTERVAL_MS is ever raised again, this
   // is what stops the owner load going up with it.
+  // Since the snapshot went to the Destiny tick's second (2026-10-27) the two are
+  // equal and the targets read rides every beat; it is still never more often.
   assert.equal(TARGETS_POLL_INTERVAL_MS, 1_000);
   assert.ok(
-    TARGETS_POLL_INTERVAL_MS > SPACE_POLL_INTERVAL_MS,
-    "a targets cadence at or below the snapshot's is not a cadence at all",
+    TARGETS_POLL_INTERVAL_MS >= SPACE_POLL_INTERVAL_MS,
+    "a targets cadence below the snapshot's is not a cadence at all",
   );
 });
 

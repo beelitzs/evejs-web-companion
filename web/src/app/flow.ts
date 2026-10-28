@@ -6270,9 +6270,11 @@ export function createAppFlow(store: ClientStore, options: AppFlowOptions = {}):
    * that per cycle — and one that did opened it precisely to watch this.
    *
    * It coalesces at the space refresh's beat rather than the hold's: the bay
-   * needs to be RIGHT, not to redraw once per stack.
+   * needs to be RIGHT, not to redraw once per stack. That beat is the Destiny
+   * tick's second (spacePoll.ts SPACE_POLL_INTERVAL_MS): a drone's state changes
+   * no faster than the batch that carries it.
    */
-  const DRONE_REFRESH_COALESCE_MS = 400;
+  const DRONE_REFRESH_COALESCE_MS = 1_000;
   let droneRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   /** The ship whose bay the drones were last read for: the one an item's move is judged against. */
   let droneBayShipID: number | null = null;
@@ -6295,8 +6297,11 @@ export function createAppFlow(store: ClientStore, options: AppFlowOptions = {}):
   // A fight pushes a shot per weapon per cycle, from both sides at once. R29
   // measured 16 incoming frames from ONE frigate in a single engagement, so
   // these coalesce harder than the hold does: the health bars only need to be
-  // right, not to redraw once per bullet.
-  const SPACE_REFRESH_COALESCE_MS = 400;
+  // right, not to redraw once per bullet. Once a second at most, the Destiny
+  // tick's beat (spacePoll.ts SPACE_POLL_INTERVAL_MS): the damage those frames
+  // report reaches the park in the tick's one batch, so a sooner read finds the
+  // same second.
+  const SPACE_REFRESH_COALESCE_MS = 1_000;
   let spaceRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   function scheduleSpaceRefresh(): void {
     if (spaceRefreshTimer !== null) {
@@ -19467,6 +19472,11 @@ export function createAppFlow(store: ClientStore, options: AppFlowOptions = {}):
     // without a poll the page would show "Locking…" forever. The targets read
     // is best-effort: it must never make a snapshot read look like a failure.
     refresh: async () => {
+      // The beat's own time, taken before the snapshot read: with the beat at a
+      // second, stamping the targets read after a read that took longer than the
+      // next one made that next beat 999-and-some ms on, not due, and the lock
+      // list skipped every other second.
+      const beatAtMs = Date.now();
       await loadSpaceSnapshot();
       // Skip the targets read while the custom bot is running: its own tick already
       // reads the locks and pushes them to the store, so polling them again here
@@ -19484,7 +19494,7 @@ export function createAppFlow(store: ClientStore, options: AppFlowOptions = {}):
         store.customBot.get().status !== "running" &&
         targetsReadIsDue(lastTargetsReadAtMs, Date.now())
       ) {
-        lastTargetsReadAtMs = Date.now();
+        lastTargetsReadAtMs = beatAtMs;
         await loadTargets().catch(() => {});
       }
     },
@@ -22673,8 +22683,9 @@ export function createAppFlow(store: ClientStore, options: AppFlowOptions = {}):
   // drones out (`companionDroneWatch`); one read in flight at a time, every
   // `DRONE_WATCH_POLL_MS`; and gone the moment the sleep ends, which a burst
   // sleep does before the first read is due. A failed read ends the watch: the
-  // tick reads again anyway.
-  const DRONE_WATCH_POLL_MS = 400;
+  // tick reads again anyway. Once a second: a drone's damage arrives in the
+  // Destiny tick's one batch a second, so the snapshot cannot show it sooner.
+  const DRONE_WATCH_POLL_MS = 1_000;
   /** This companion's own drones that were at full shield on the last tick of a fight. Empty: no watch. */
   let companionDroneWatch: readonly number[] = [];
 

@@ -235,9 +235,12 @@ async function onlineFlow() {
   return { store, flow, source, state: world.state };
 }
 
-/** Let the flow's OnItemsChanged coalescing window close. */
+/**
+ * Let the flow's OnItemsChanged coalescing window close: the drone bay's is a
+ * Destiny tick, a second (flow.ts DRONE_REFRESH_COALESCE_MS), so a little more.
+ */
 function settle(): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, 600));
+  return new Promise((resolve) => setTimeout(resolve, 1_200));
 }
 
 test("drones moved INTO the bay show up in the window that launches them", async () => {

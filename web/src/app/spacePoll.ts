@@ -1,9 +1,10 @@
 // Overview refresh cadence (goal R11).
 //
-// The retail client re-renders its overview every 0.5-1.0s off a locally
-// dead-reckoned ballpark. We re-read the authoritative snapshot twice a second
-// while the ship is in space and the panel is open — the same cadence — and draw
-// exactly what it says — see the note in `ui/Tactical.svelte` for the two
+// Space changes once a second: EveJS runs CCP's retail Destiny tick (one tick and
+// one batch a second, eve.js doc/DESTINY_RETAIL_TICK.md), and the BFF's park
+// steps once per second of sim time, as the client's does (Ballpark::OnTick). We
+// re-read the authoritative snapshot once a second while the ship is in space and
+// the panel is open, and draw exactly what it says — see the note in `ui/Tactical.svelte` for the two
 // attempts at smoothing between reads and why neither survived. Polling here is
 // not a stand-in for push — it IS the cadence the real client runs at,
 // and the R10 push channel does not replace it (the channel carries events, not
@@ -26,9 +27,14 @@
  * gateway that serialises owner calls. That is not theoretical: R89 took this to
  * 200 ms, and the connection failures that followed were the load.
  *
- * 500 ms is retail's own overview cadence (0.5-1.0s), which is the argument for
- * it. Twice the original cost, half of what 3 Hz asked for, and the step from
- * three frames a second to two is far less visible than the difference in load.
+ * ONE SECOND, BECAUSE THAT IS HOW OFTEN SPACE CHANGES. Since EveJS took CCP's
+ * retail Destiny tick (2026-10-24) the server sends one batch a second, and the
+ * snapshot's positions are the park's as of its last whole-second step
+ * (src/gamePort/spaceProjection.js), so a faster read only reads the same second
+ * again. The operator's word, 2026-10-27: "the client only polls/receives 1
+ * update per second now on space, so please be sure to do that the same here in
+ * the web app." (It was 500 ms, retail's 0.5-1.0 s overview redraw, before the
+ * retail tick.)
  *
  * Two things keep it safe rather than merely faster. A beat is SKIPPED whenever
  * a read is still in flight (see below), so a server that cannot answer in time
@@ -36,7 +42,7 @@
  * a queue. And the poller stops entirely the moment the ship is not in space,
  * the panel closes, or the tab is hidden.
  */
-export const SPACE_POLL_INTERVAL_MS = 500;
+export const SPACE_POLL_INTERVAL_MS = 1_000;
 
 /**
  * How often the LOCKED-TARGET list is re-read, in milliseconds.
