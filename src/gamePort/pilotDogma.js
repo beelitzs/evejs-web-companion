@@ -1273,6 +1273,14 @@ function createPilotDogma({
         const [x, y] = [clock(a[3]) ?? 0n, clock(b[3]) ?? 0n];
         return x < y ? -1 : x > y ? 1 : 0;
       };
+      // OnMultiEvent_ 230 to 235: an event of a name it does not file is scattered as it is, before the effects and the
+      // attribute changes, and godma hears one of them itself: OnModuleAttributeChanges, a list of changes, which a
+      // server may send beside the singular ones (EveJS did until ea8e0760a: B37, a capacitor's drain never read).
+      for (const event of moments.get(moment)) {
+        if (!Array.isArray(event) || text(event[0]) !== "OnModuleAttributeChanges") continue;
+        const work = attributeChanges(items(event[1]));
+        if (work && typeof work.then === "function") pending.push(work);
+      }
       const lastEffect = new Map();
       for (const event of moments.get(moment).filter((each) => Array.isArray(each) && text(each[0]) === "OnGodmaShipEffect").sort(byEffectTime)) {
         lastEffect.set(`${event[1]}:${event[2]}`, event);
