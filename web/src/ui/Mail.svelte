@@ -467,18 +467,6 @@
     return resolvedName($names.resolved, isAllianceOwner(ownerID) ? "alliance" : "corporation", ownerID, "their organisation");
   }
 
-  /** A retail FILETIME as a plain date and time. Never rendered as a number. */
-  function whenText(filetime: bigint | null): string {
-    if (filetime === null) {
-      return "—";
-    }
-    const unixMs = Number(filetime / 10000n - 11644473600000n);
-    if (!Number.isFinite(unixMs) || unixMs <= 0) {
-      return "—";
-    }
-    return new Date(unixMs).toLocaleString();
-  }
-
   /** Who a message went to, in words. */
   function audienceText(header: MailHeaderRow): string {
     const audience = audienceOf(header);
@@ -2529,8 +2517,9 @@
         <h2>{openHeader ? openHeader.title || "(no subject)" : "Message"}</h2>
         {#if openHeader}
           <p class="note">
+            <!-- The date as the reading pane writes it, FmtDate(sentDate, 'ls') (mailSvc.py 1092), as the list does. -->
             From {senderName(openHeader)}, to {audienceText(openHeader)},
-            {whenText(openHeader.sentDate)}.
+            {dateText(openHeader.sentDate) || "—"}.
           </p>
         {/if}
         {#if $mail.open.unreadable}
