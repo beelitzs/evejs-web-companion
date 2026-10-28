@@ -505,16 +505,21 @@
     return (draftPriceCheck.price * Number(draft.quantity)).toFixed(2);
   });
   /**
+   * An order filled right now or not at all (duration 0) pays no broker's fee: the client works the fee out only for
+   * an order left open, and shows "-" for one that is not (buyThisTypeWindow.py 876 to 912, `if duration > 0`).
+   */
+  const draftFillsNow = $derived(draft !== null && Number(draft.durationDays) === 0);
+  /**
    * The fee at the pilot's own rate where the Market read has one (the BFF works it out as the game does, on the
    * game port). Without one, ⚠ AN ESTIMATE at the standard 3% rate — see bridge/market.ts.
    */
   const draftFee = $derived.by(() => {
-    if (draft === null || !draftPriceCheck?.ok || !draftQuantityCheck?.ok) {
+    if (draft === null || draftFillsNow || !draftPriceCheck?.ok || !draftQuantityCheck?.ok) {
       return null;
     }
     return estimateBrokerFee(draftPriceCheck.price, Number(draft.quantity), $market.brokersFeeRate);
   });
-  const draftFeeWords = $derived(brokerFeeWords(draftFee));
+  const draftFeeWords = $derived(draftFillsNow ? { heading: "Broker's fee", before: "", percent: null } : brokerFeeWords(draftFee));
   // A rate known while docked in a structure is the structure's own, not the pilot's.
   const draftFeeBasis = $derived(brokerFeeBasisWords($market.structureID !== null));
   const draftReady = $derived.by(() => {
@@ -1212,7 +1217,12 @@
             </tbody>
           </table>
         </div>
-        {#if draftFee && !draftFee.estimated}
+        {#if draftFillsNow}
+          <p class="note">
+            An order that is filled right now, or not at all, pays no broker's fee. Once
+            it goes through, the amount you were actually charged is shown here.
+          </p>
+        {:else if draftFee && !draftFee.estimated}
           <p class="note">
             The broker's fee above is worked out at {draftFeeBasis.rate}, {draftFeeWords.percent}%,
             {draftFeeBasis.madeOf}{draftFee.atMinimum ? "; this order is small enough that the smallest fee there is applies" : ""}.{draftFeeBasis.also}
