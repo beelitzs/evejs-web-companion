@@ -48,6 +48,23 @@ function Read-EnvFile {
   return $map
 }
 
+# The built page (public/dist, git-ignored) is not rebuilt by `npm start`, so after an update it would go on serving
+# the old page against the new BFF. Stale when it is missing or older than anything it is built from.
+function Test-WebPageStale {
+  $page = Join-Path $RepoRoot "public\dist\index.html"
+  if (-not (Test-Path $page)) { return $true }
+  $builtAt = (Get-Item -LiteralPath $page).LastWriteTimeUtc
+  $sources = @(Get-ChildItem -LiteralPath (Join-Path $RepoRoot "web") -Recurse -File)
+  foreach ($name in @("package-lock.json", "vite.config.ts", "tsconfig.json")) {
+    $file = Join-Path $RepoRoot $name
+    if (Test-Path $file) { $sources += Get-Item -LiteralPath $file }
+  }
+  foreach ($source in $sources) {
+    if ($source.LastWriteTimeUtc -gt $builtAt) { return $true }
+  }
+  return $false
+}
+
 $env_ = Read-EnvFile $WebEnvPath
 $clientMode = "native"
 if ($env_.ContainsKey("EVEJS_WEB_MODE") -and $env_["EVEJS_WEB_MODE"] -eq "docker") { $clientMode = "docker" }
@@ -91,6 +108,11 @@ try {
         & docker compose @composeArgs exec -T bff node scripts/doctor.js | Out-Null
         $connected = ($LASTEXITCODE -eq 0)
       } else {
+        if (Test-WebPageStale) {
+          Write-Info "Building the web page (it is older than its sources)..."
+          & npm run build:web
+          if ($LASTEXITCODE -ne 0) { throw "Building the web page failed." }
+        }
         Start-Process -FilePath "cmd.exe" `
           -ArgumentList "/k", "cd /d ""$RepoRoot"" && npm start" `
           -WorkingDirectory $RepoRoot | Out-Null
