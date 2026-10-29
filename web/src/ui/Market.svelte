@@ -14,7 +14,7 @@
   // client-local service called `marketQuote`; there is no server call for it.
   // So it is implemented client-side here too, which is also why re-sorting the
   // book costs no round-trip.
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { portal } from "./portal.ts";
   import { marketDetailsTarget } from "./marketDetails.ts";
   import {
@@ -365,6 +365,24 @@
   let query = $state("");
   let matches = $state<readonly MarketTypeMatch[]>([]);
   let chosenName = $state("");
+  // The chosen item's book is drawn under the browse tree, and an order's draft under the whole book, out of sight in a
+  // window of its first size: choosing an item or pressing Offer to buy looked like a click that did nothing, and what
+  // placing the order did is said at the window's head, far above the draft. The heading is brought to the top of
+  // whatever scrolls the window, once it is drawn.
+  let windowHead = $state<HTMLElement | undefined>();
+  let bookHeading = $state<HTMLElement | undefined>();
+  let draftHeading = $state<HTMLElement | undefined>();
+  async function bringToTop(which: "head" | "book" | "draft"): Promise<void> {
+    await tick();
+    const heading = which === "head" ? windowHead : which === "book" ? bookHeading : draftHeading;
+    let scroller = heading?.parentElement ?? null;
+    while (scroller && scroller.scrollHeight <= scroller.clientHeight) {
+      scroller = scroller.parentElement;
+    }
+    if (heading && scroller) {
+      scroller.scrollTop += heading.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+    }
+  }
   // The market read as the window opens: of the type whose market details were asked for from outside it
   // (marketDetails.ts, marketutils.ShowMarketDetails), where one opened it, else of none; and of each type asked for
   // so while it is open.
@@ -458,7 +476,10 @@
     matches = [];
     query = "";
     closeDraft();
-    void run(() => flow.loadMarket(match.typeID));
+    void run(async () => {
+      await flow.loadMarket(match.typeID);
+      await bringToTop("book");
+    });
   }
 
   function refresh(): void {
@@ -568,6 +589,7 @@
       durationDays: 30,
     };
     confirming = false;
+    void bringToTop("draft");
   }
 
   /**
@@ -629,7 +651,7 @@
         itemID: current.side === "sell" ? sellItemID ?? 0 : undefined,
       });
       closeDraft();
-    });
+    }).then(() => bringToTop("head"));
   }
 
   function cancelOrder(order: MarketOwnOrderRow): void {
@@ -764,7 +786,7 @@
 </script>
 
 <section class="panel">
-  <header class="panel-head">
+  <header class="panel-head" bind:this={windowHead}>
     <h2 class="panel-title">Market</h2>
     <p class="controls">
       <input
@@ -1001,7 +1023,7 @@
 
 {#if $market.loaded && tab === "book"}
   <section>
-    <h2>
+    <h2 bind:this={bookHeading}>
       {#if $market.typeID === null}
         Pick an item
       {:else}
@@ -1146,7 +1168,7 @@
 
   {#if draft !== null && $market.typeID !== null}
     <section class="bulk">
-      <h2>
+      <h2 bind:this={draftHeading}>
         {draft.side === "buy" ? "Offer to buy" : "Offer to sell"}
         {chosenName || typeName($market.typeID)}
       </h2>
