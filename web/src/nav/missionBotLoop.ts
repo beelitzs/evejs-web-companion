@@ -1361,6 +1361,13 @@ export function createMissionBot(deps: MissionBotDeps): MissionBotController {
       memory.missionName = label;
     }
 
+    // In flight the observation carries the travel status and no briefing (observe reads nothing else then), so the
+    // jumps are taken from it before the briefing is looked for.
+    memory.jumpsRemaining =
+      observation.travel?.status === "running"
+        ? observation.travel.remainingJumps
+        : observation.jumpsToDropoff ?? memory.jumpsRemaining;
+
     const briefing = observation.briefing;
     if (!briefing) {
       return;
@@ -1368,10 +1375,6 @@ export function createMissionBot(deps: MissionBotDeps): MissionBotController {
     if (briefing.cargoQuantity !== null && briefing.cargoVolume !== null) {
       memory.cargoText = `${briefing.cargoQuantity.toLocaleString()} units, ${briefing.cargoVolume.toLocaleString()} m³`;
     }
-    memory.jumpsRemaining =
-      observation.travel?.status === "running"
-        ? observation.travel.remainingJumps
-        : observation.jumpsToDropoff ?? memory.jumpsRemaining;
   }
 
   /**
