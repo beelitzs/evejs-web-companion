@@ -7263,6 +7263,11 @@
     overscroll-behavior: contain;
     background: var(--hangar-page);
   }
+  /* Opened from a live client, the character bar (z-index 40) stays over the hangar: its sticky header, with Add
+   * account and To client, sat under the bar and could not be clicked. */
+  .hangar.under-char-bar {
+    top: var(--char-bar-h);
+  }
 
   /* The palette, the two faces and the control resets. `.hangar-chrome` carries
    * them onto the dialogs, which are fixed overlays rendered OUTSIDE the screen

@@ -678,7 +678,8 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
-<div class="hangar" onclick={closePopovers}>
+<!-- Over a live client (onClose given) the character bar is drawn above the hangar, so the hangar starts below it. -->
+<div class="hangar" class:under-char-bar={onClose !== null} onclick={closePopovers}>
   <header class="hangar-head">
     <div class="hangar-brand">
       <span class="hangar-wordmark">EveJS Web</span>
